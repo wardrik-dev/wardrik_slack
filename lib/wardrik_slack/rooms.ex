@@ -150,7 +150,8 @@ defmodule WardrikSlack.Rooms do
 
   defp approving(%Workspace{installation: %{approvers: approvers}}),
     do:
-      "A call that needs approval waits in its thread for #{WardrikSlack.Waiting.named(approvers)}."
+      "A call that needs approval is sent to #{WardrikSlack.Waiting.named(approvers)} to approve, " <>
+        "and the thread says so."
 
   defp described(%Offer{description: description}) when is_binary(description),
     do: [Blocks.context("_#{description}_")]

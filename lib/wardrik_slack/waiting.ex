@@ -43,9 +43,8 @@ defmodule WardrikSlack.Waiting do
     Enum.map_join(most, ", ", &mention/1) <> " or " <> mention(last)
   end
 
-  defp mention(approver) do
-    if Regex.match?(~r/\A[UW][A-Z0-9]+\z/, approver), do: "<@#{approver}>", else: approver
-  end
+  defp mention(approver),
+    do: if(WardrikSlack.Approvers.id?(approver), do: "<@#{approver}>", else: approver)
 
   defp asked(calls), do: Enum.map_join(calls, " and ", &ask/1)
 

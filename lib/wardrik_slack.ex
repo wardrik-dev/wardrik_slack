@@ -26,7 +26,9 @@ defmodule WardrikSlack do
   Over Socket Mode, give Wardrik a Slack app of its own. Slack spreads an app's events across every
   connection open for it.
 
-  `approvers` are named by `@handle`, email address or Slack member ID. While an agent works, its
+  `approvers` are named by `@handle`, email address or Slack member ID. A call an agent waits on is
+  sent to each of them in the app's Messages tab, with a link to its thread, and the thread says
+  who it waits on. Where none of them can be reached, it's asked in the thread. While an agent works, its
   thread shows what it's doing as the app's status. A message the agent takes gets :eyes:, and
   :white_check_mark: once it's answered.
 
@@ -35,10 +37,13 @@ defmodule WardrikSlack do
 
   use WardrikChannel
 
+  require Logger
+
   alias WardrikChannel.Channel
   alias WardrikChannel.Outbound
   alias WardrikChannel.Workspace
   alias WardrikSlack.API
+  alias WardrikSlack.Approvers
   alias WardrikSlack.Blocks
   alias WardrikSlack.Messages
 
@@ -103,6 +108,29 @@ defmodule WardrikSlack do
     end
   end
 
+  defp posted(
+         workspace,
+         %Outbound{body: {:waiting, calls}, approvers: [_ | _] = approvers} = outbound
+       ) do
+    from = from(workspace, outbound)
+    message = WardrikSlack.Waiting.message(calls, approvers)
+
+    case Enum.filter(
+           Approvers.members(workspace, approvers),
+           &asked?(workspace, &1, message, from)
+         ) do
+      [] ->
+        Logger.warning(
+          "Slack reached none of #{inspect(approvers)}, so they're asked in the thread."
+        )
+
+        message(workspace, outbound, message)
+
+      _asked ->
+        message(workspace, outbound, %{text: message.text})
+    end
+  end
+
   defp posted(workspace, %Outbound{body: {:waiting, calls}, approvers: approvers} = outbound),
     do: message(workspace, outbound, WardrikSlack.Waiting.message(calls, approvers))
 
@@ -111,6 +139,31 @@ defmodule WardrikSlack do
 
   defp posted(workspace, %Outbound{body: {:said, text}} = outbound),
     do: message(workspace, outbound, %{text: text, blocks: [Blocks.context(text)]})
+
+  defp asked?(_workspace, {approver, :error}, _message, _from) do
+    Logger.warning("Slack has no member #{approver}, so they aren't asked directly.")
+    false
+  end
+
+  defp asked?(workspace, {approver, {:ok, member}}, %{text: text, blocks: [heading | rest]}, from) do
+    message = %{channel: member, text: text, blocks: [heading, from | rest]}
+
+    case API.post_in(workspace, "chat.postMessage", message) do
+      {:ok, _posted} ->
+        true
+
+      {:error, reason} ->
+        Logger.warning("Slack couldn't message #{approver}: #{inspect(reason)}")
+        false
+    end
+  end
+
+  defp from(workspace, %Outbound{room: room, thread: thread}) do
+    case API.read_in(workspace, "chat.getPermalink", %{channel: room, message_ts: thread}) do
+      {:ok, %{"permalink" => link}} -> Blocks.context("From <#{link}|a thread> in <##{room}>.")
+      _unlinked -> Blocks.context("From a thread in <##{room}>.")
+    end
+  end
 
   defp reply(""), do: %{text: "_It answered nothing._"}
   defp reply(text), do: %{text: Blocks.clip(text, 3_000), blocks: [Blocks.markdown(text)]}

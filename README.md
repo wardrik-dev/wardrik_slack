@@ -4,7 +4,8 @@ Wardrik in Slack: agents answer in threads, and ask there, with Approve and Deny
 they can't make alone.
 
 > **maria:** @Wardrik what time is it on the server? :eyes:
-> ↳ **Wardrik:** Waiting on @maria to approve `clock`. `[Approve]` `[Deny]`
+> ↳ **Wardrik:** Waiting on @maria to approve `clock`.
+> **Wardrik**, to maria: `clock`, from a thread in #ops. `[Approve]` `[Deny]`
 > ↳ **Wardrik:** Approved by maria.
 > ↳ **Wardrik:** It's 14:02 UTC.
 
@@ -23,6 +24,10 @@ display_information:
   name: Wardrik
   description: Agents that answer in threads, and ask before they act.
 features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: true
   bot_user:
     display_name: Wardrik
     always_online: true
@@ -162,6 +167,14 @@ the app, and it answers in a thread under your message. With several, pick one. 
 
 `approvers` are named by `@handle`, email address, or Slack member ID, or `:anyone`. An email
 address needs the `users:read.email` scope. Whoever asked for a turn may always decide it.
+
+A call an agent waits on is sent to each approver in the app's **Messages** tab, with a link to
+its thread, and the thread says who it waits on:
+
+> ↳ **Wardrik:** Waiting on @maria or @jon to approve `create_bill`.
+
+The first to answer decides. Where Slack can reach none of them, the call is asked in the thread
+instead, with the same buttons.
 
 ## Many workspaces
 

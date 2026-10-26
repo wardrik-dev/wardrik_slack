@@ -148,8 +148,24 @@ defmodule WardrikSlackTest do
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
-                      %{"text" => "Waiting on @maria to approve `echo`.", "blocks" => blocks}},
+                      %{
+                        "channel" => "U1",
+                        "text" => "Waiting on @maria to approve `echo`.",
+                        "blocks" => blocks
+                      }},
                      1_000
+
+      assert JSON.encode!(blocks) =~ "https://acme.slack.com/archives/C1/p1.1|a thread"
+
+      assert_receive {:slack, "chat.postMessage",
+                      %{
+                        "channel" => "C1",
+                        "thread_ts" => "1.1",
+                        "text" => "Waiting on @maria to approve `echo`."
+                      } = said},
+                     1_000
+
+      refute Map.has_key?(said, "blocks")
 
       [%{"elements" => [approve | _deny]}] =
         for %{"type" => "actions"} = block <- blocks, do: block
@@ -183,7 +199,7 @@ defmodule WardrikSlackTest do
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
-                      %{"blocks" => blocks, "text" => "Waiting" <> _}},
+                      %{"channel" => "U1", "blocks" => blocks, "text" => "Waiting" <> _}},
                      1_000
 
       [%{"elements" => [_approve, deny]}] =
@@ -201,6 +217,46 @@ defmodule WardrikSlackTest do
       press(context, pressed("wardrik_deny", %{value: deny["value"]}, "U3", name: "ana"))
       assert_receive {:slack, "chat.postMessage", %{"text" => "Denied by ana: Rejected."}}, 1_000
       assert_receive {:slack, "reactions.add", %{"name" => "white_check_mark"}}, 1_000
+    end
+
+    @tag slack: [approvers: ["maria@example.com", "U2", "@ana", "@bot", "nobody@example.com"]]
+    test "asks each approver Slack finds, by email, ID or handle", context do
+      answers([calling("call_1", "echo", %{"text" => "hi"})])
+      event(context, message("<@UBOT> echo hi", "1.1"))
+
+      for member <- ["U1", "U2", "U3"],
+          do:
+            assert_receive(
+              {:slack, "chat.postMessage", %{"channel" => ^member, "blocks" => _blocks}},
+              1_000
+            )
+
+      assert_receive {:slack, "chat.postMessage", %{"channel" => "U4"}}, 1_000
+
+      assert_receive {:slack, "chat.postMessage",
+                      %{
+                        "channel" => "C1",
+                        "text" =>
+                          "Waiting on maria@example.com, <@U2>, @ana, @bot or nobody@example.com to approve `echo`."
+                      }},
+                     1_000
+    end
+
+    @tag slack: [approvers: ["@ghost", "@bot"]]
+    test "asks in the thread where it reaches no approver", context do
+      answers([calling("call_1", "echo", %{"text" => "hi"})])
+      event(context, message("<@UBOT> echo hi", "1.1"))
+
+      assert_receive {:slack, "chat.postMessage",
+                      %{
+                        "channel" => "C1",
+                        "thread_ts" => "1.1",
+                        "text" => "Waiting on @ghost or @bot" <> _,
+                        "blocks" => blocks
+                      }},
+                     1_000
+
+      assert JSON.encode!(blocks) =~ "wardrik_approve"
     end
 
     test "says a run stopped, and why one failed", context do

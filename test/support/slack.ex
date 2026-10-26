@@ -181,7 +181,32 @@ defmodule WardrikSlack.Test do
     }
   end
 
+  defp reply("chat.postMessage", %{"channel" => "U4"}), do: %{ok: false, error: "cannot_dm_bot"}
   defp reply("chat.postMessage", _params), do: %{ok: true, ts: "9.9"}
+
+  defp reply("users.list", %{"cursor" => "page-2"}),
+    do: %{ok: true, members: [%{id: "U4", name: "bot"}], response_metadata: %{next_cursor: ""}}
+
+  defp reply("users.list", _params) do
+    members = Enum.map(@people, fn {id, name} -> %{id: id, name: name} end)
+
+    %{
+      ok: true,
+      members: [%{id: "U0", name: "gone", deleted: true} | members],
+      response_metadata: %{next_cursor: "page-2"}
+    }
+  end
+
+  defp reply("users.lookupByEmail", %{"email" => email}) do
+    case Enum.find(@people, fn {_id, name} -> "#{name}@example.com" == email end) do
+      {id, _name} -> %{ok: true, user: %{id: id}}
+      nil -> %{ok: false, error: "users_not_found"}
+    end
+  end
+
+  defp reply("chat.getPermalink", %{"message_ts" => ts}),
+    do: %{ok: true, permalink: "https://acme.slack.com/archives/C1/p#{ts}"}
+
   defp reply("apps.connections.open", _params), do: %{ok: false, error: "invalid_auth"}
 
   defp reply("oauth.v2.access", %{"code" => "good"}),
