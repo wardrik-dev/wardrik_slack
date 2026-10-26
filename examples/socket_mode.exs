@@ -1,0 +1,64 @@
+# Runs an agent in your Slack workspace over Socket Mode, with no public address.
+#
+#   SLACK_BOT_TOKEN=xoxb-... SLACK_APP_TOKEN=xapp-... ANTHROPIC_API_KEY=sk-ant-... \
+#     mix run --no-halt examples/socket_mode.exs
+#
+# Optional: WARDRIK_ORG (acme), SLACK_APPROVERS (@you,@them), WARDRIK_MODEL.
+
+defmodule Local.Clock do
+  @behaviour WardrikCore.Capability
+
+  @impl true
+  def tools(_context, _opts) do
+    [
+      WardrikCore.Tool.new!(
+        name: "clock",
+        description: "Tells the time on the server, in UTC.",
+        schema: [],
+        run: fn _args, _context -> {:ok, DateTime.utc_now() |> DateTime.to_iso8601()} end
+      )
+    ]
+  end
+end
+
+defmodule Local.Wardrik do
+  use Wardrik
+end
+
+Logger.configure(level: :warning)
+
+org = System.get_env("WARDRIK_ORG", "acme")
+approvers = "SLACK_APPROVERS" |> System.get_env("") |> String.split(",", trim: true)
+
+{:ok, wardrik} =
+  Local.Wardrik.start_link(
+    capabilities: [clock: Local.Clock],
+    policies: [careful: [ask: ["clock"]]],
+    channels: [
+      slack:
+        {WardrikSlack,
+         token: System.fetch_env!("SLACK_BOT_TOKEN"),
+         app_token: System.fetch_env!("SLACK_APP_TOKEN"),
+         owner: org,
+         approvers: approvers}
+    ]
+  )
+
+Process.unlink(wardrik)
+
+me = Local.Wardrik.as(org, roles: [:owner], resources: [org <> "/*"])
+
+{:ok, agent} =
+  Wardrik.Agent.define(me, org <> "/assistant",
+    model: System.get_env("WARDRIK_MODEL", "anthropic:claude-haiku-4-5"),
+    instructions: "You help people in Slack. Keep answers short. Use the clock to tell the time.",
+    description: "Answers questions, and asks before it reads the clock.",
+    tools: ["clock"],
+    policy: "careful",
+    channels: ["slack"]
+  )
+
+IO.puts("""
+#{agent.id} is offered in Slack. Invite your app into a Slack channel with /invite @YourApp,
+then mention it: "@YourApp what time is it?" Approve the clock in the thread.
+""")
