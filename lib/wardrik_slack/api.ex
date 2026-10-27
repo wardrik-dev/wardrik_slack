@@ -1,12 +1,14 @@
 defmodule WardrikSlack.API do
   @moduledoc """
   Calls Slack's Web API with a token. Each call takes the channel's `:req_options`, merged into
-  the request, so tests can point it at `Req.Test`.
+  the request, so tests can point it at `Req.Test`. A call Slack limits, answers with a 5xx, or
+  drops is tried again up to five times, waiting longer each time, or as long as Slack says.
   """
 
   require Logger
 
   @api "https://slack.com/api/"
+  @retried [retry: :transient, max_retries: 5]
 
   @doc "Calls `method` with `body` as JSON, and returns Slack's reply."
   @spec post(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -48,7 +50,7 @@ defmodule WardrikSlack.API do
   @doc "Calls `method` with `options` as Req takes them, and returns Slack's reply."
   @spec call(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def call(method, options) do
-    case Req.post(@api <> method, options) do
+    case Req.post(@api <> method, @retried ++ options) do
       {:ok, %Req.Response{status: 200, body: %{"ok" => true} = reply}} -> {:ok, reply}
       {:ok, %Req.Response{body: %{"error" => error}}} -> {:error, error}
       {:ok, %Req.Response{status: status}} -> {:error, {:status, status}}
@@ -64,7 +66,7 @@ defmodule WardrikSlack.API do
   def respond(nil, _reply, _req_options), do: :ok
 
   def respond(url, reply, req_options) do
-    case Req.post(url, [json: reply] ++ req_options) do
+    case Req.post(url, [json: reply] ++ @retried ++ req_options) do
       {:ok, %Req.Response{status: status}} when status in 200..299 -> :ok
       other -> Logger.warning("Slack didn't take an answer to a button: #{inspect(other)}")
     end

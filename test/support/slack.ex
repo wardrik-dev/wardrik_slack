@@ -40,7 +40,7 @@ defmodule WardrikSlack.Test do
         signing_secret: "s3cret",
         owner: "acme",
         approvers: ["@maria"],
-        req_options: [plug: {Req.Test, WardrikSlack.Test.Slack}, retry: false]
+        req_options: [plug: {Req.Test, WardrikSlack.Test.Slack}, retry_delay: 0]
       ]
       |> Keyword.merge(Map.get(context, :slack, []))
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
@@ -55,7 +55,8 @@ defmodule WardrikSlack.Test do
          keys: [WardrikVault.generate_key()],
          channels: [slack: {WardrikSlack, slack}],
          capabilities: [tools: WardrikSlack.Test.Tools],
-         policies: [careful: [ask: ["echo"]]]
+         policies: [careful: [ask: ["echo"]]],
+         defaults: %{"retries" => %{"attempts" => 0, "on_exhausted" => "fail"}}
        )}
     )
 
