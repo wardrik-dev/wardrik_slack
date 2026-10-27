@@ -19,8 +19,16 @@ defmodule WardrikSlack.Waiting do
   @spec message([Waiting.t()], [String.t()] | :anyone) :: %{text: String.t(), blocks: [map()]}
   def message(calls, approvers) do
     text = "#{who(approvers)} #{asked(calls)}."
-    %{text: text, blocks: [Blocks.section(text) | Enum.flat_map(calls, &blocks/1)]}
+    %{text: text, blocks: [Blocks.section(text) | calls_blocks(calls)]}
   end
+
+  @doc "Returns the blocks that show `calls`, each with its question and buttons."
+  @spec calls_blocks([Waiting.t()]) :: [map()]
+  def calls_blocks(calls), do: Enum.flat_map(calls, &blocks/1)
+
+  @doc "Returns what `calls` ask for, as `approve `echo` and sign in for `mail``."
+  @spec asked([Waiting.t()]) :: String.t()
+  def asked(calls), do: Enum.map_join(calls, " and ", &ask/1)
 
   @doc "Returns the id of the box a note on the call `id` is written in."
   @spec note_block(String.t()) :: String.t()
@@ -45,8 +53,6 @@ defmodule WardrikSlack.Waiting do
 
   defp mention(approver),
     do: if(WardrikSlack.Approvers.id?(approver), do: "<@#{approver}>", else: approver)
-
-  defp asked(calls), do: Enum.map_join(calls, " and ", &ask/1)
 
   defp ask(%Waiting{interrupt: %{reason: :authorization, name: name}}),
     do: "sign in for `#{name}`"

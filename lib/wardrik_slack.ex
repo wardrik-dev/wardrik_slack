@@ -137,6 +137,23 @@ defmodule WardrikSlack do
   defp posted(workspace, %Outbound{body: {:failed, reason}} = outbound),
     do: message(workspace, outbound, %{text: ":warning: It stopped with an error: #{reason}"})
 
+  defp posted(
+         workspace,
+         %Outbound{body: {:notice, %{kind: :parked} = notice}, approvers: [_ | _] = approvers} =
+           outbound
+       ) do
+    message = WardrikSlack.Notices.message(notice, approvers)
+
+    with {:ok, %{"ts" => ts} = posted} <- message(workspace, outbound, message) do
+      from = from(workspace, %{outbound | thread: ts}, "a notice")
+      Enum.each(Approvers.members(workspace, approvers), &asked?(workspace, &1, message, from))
+      {:ok, posted}
+    end
+  end
+
+  defp posted(workspace, %Outbound{body: {:notice, notice}, approvers: approvers} = outbound),
+    do: message(workspace, outbound, WardrikSlack.Notices.message(notice, approvers))
+
   defp posted(workspace, %Outbound{body: {:said, text}} = outbound),
     do: message(workspace, outbound, %{text: text, blocks: [Blocks.context(text)]})
 
@@ -158,15 +175,18 @@ defmodule WardrikSlack do
     end
   end
 
-  defp from(workspace, %Outbound{room: room, thread: thread}) do
+  defp from(workspace, %Outbound{room: room, thread: thread}, what \\ "a thread") do
     case API.read_in(workspace, "chat.getPermalink", %{channel: room, message_ts: thread}) do
-      {:ok, %{"permalink" => link}} -> Blocks.context("From <#{link}|a thread> in <##{room}>.")
-      _unlinked -> Blocks.context("From a thread in <##{room}>.")
+      {:ok, %{"permalink" => link}} -> Blocks.context("From <#{link}|#{what}> in <##{room}>.")
+      _unlinked -> Blocks.context("From #{what} in <##{room}>.")
     end
   end
 
   defp reply(""), do: %{text: "_It answered nothing._"}
   defp reply(text), do: %{text: Blocks.clip(text, 3_000), blocks: [Blocks.markdown(text)]}
+
+  defp message(workspace, %Outbound{room: room, thread: nil}, message),
+    do: API.post_in(workspace, "chat.postMessage", Map.put(message, :channel, room))
 
   defp message(workspace, %Outbound{room: room, thread: thread}, message),
     do:

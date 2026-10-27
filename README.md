@@ -176,6 +176,33 @@ its thread, and the thread says who it waits on:
 The first to answer decides. Where Slack can reach none of them, the call is asked in the thread
 instead, with the same buttons.
 
+## Notices
+
+An agent nobody watches, such as one a trigger asks every morning, can post in a room when it
+answers, fails, or waits on a person. Route it to the room as `slack:#room`:
+
+```elixir
+Wardrik.Agent.define(scope, "acme/digest",
+  model: "anthropic:claude-haiku-4-5",
+  notify: %{to: ["slack:#updates"], on: ["finished", "failed"]}
+)
+```
+
+To ask approvers about a parked turn, name a target in your Wardrik's `notify`, and route to it:
+
+```elixir
+config :my_app, MyApp.Wardrik,
+  notify: [targets: [ops: {Wardrik.Notify.Room, channel: "slack", room: "#ops", approvers: ["@maria"]}]]
+
+Wardrik.Agent.define(scope, "acme/triage", model: "anthropic:claude-haiku-4-5", notify: "ops")
+```
+
+The notice is posted in the room, with Approve and Deny, and sent to each approver in the
+**Messages** tab with a link to it. Only the channel's own approvers may decide. The app posts in
+any public channel, since the manifest asks for `chat:write.public`; invite it into a private one.
+It never answers its own posts, so a room where the agent answers every message doesn't loop.
+See `Wardrik.Notify` for webhooks and the rest.
+
 ## Many workspaces
 
 One app can serve many workspaces, one for each org. Give the channel `client_id` and

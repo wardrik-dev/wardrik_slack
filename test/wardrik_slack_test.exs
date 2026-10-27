@@ -302,6 +302,55 @@ defmodule WardrikSlackTest do
     end
   end
 
+  describe "notices" do
+    test "posts what a turn answered in the room the route names", context do
+      define(context.owner, "acme/digest", notify: %{to: ["slack:#news"], on: ["finished"]})
+      answers([answer("Three things happened.")])
+      {:ok, _message} = Wardrik.Agent.ask(context.owner, "acme/digest", content: "Go")
+
+      assert_receive {:slack, "chat.postMessage",
+                      %{"channel" => "#news", "text" => "acme/digest: Three things happened."} =
+                        posted},
+                     1_000
+
+      refute Map.has_key?(posted, "thread_ts")
+    end
+
+    @tag notify: [
+           targets: [
+             ops: {Wardrik.Notify.Room, channel: "slack", room: "#ops", approvers: ["@maria"]}
+           ]
+         ]
+    test "asks a target's approvers about a parked turn, in the room and directly", context do
+      define(context.owner, "acme/triage", tools: ["tools"], policy: "careful", notify: "ops")
+      answers([calling("call_1", "echo", %{"text" => "hi"}), answer("Done.")])
+      {:ok, _message} = Wardrik.Agent.ask(context.owner, "acme/triage", content: "Echo hi")
+
+      assert_receive {:slack, "chat.postMessage",
+                      %{
+                        "channel" => "#ops",
+                        "text" => "`acme/triage` waits on @maria to approve `echo`."
+                      }},
+                     1_000
+
+      assert_receive {:slack, "chat.postMessage", %{"channel" => "U1", "blocks" => blocks}}, 1_000
+      assert JSON.encode!(blocks) =~ "a notice"
+
+      [%{"elements" => [approve | _deny]}] =
+        for %{"type" => "actions"} = block <- blocks, do: block
+
+      press(
+        context,
+        pressed("wardrik_approve", %{value: approve["value"]}, "U1",
+          name: "maria",
+          blocks: blocks
+        )
+      )
+
+      assert_receive {:slack, {:respond, _path}, %{"text" => "Approved echo"}}, 1_000
+    end
+  end
+
   describe "the app taken out" do
     test "forgets its installation", context do
       callback = %{type: "event_callback", team_id: "T1", event: %{type: "app_uninstalled"}}
