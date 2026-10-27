@@ -59,6 +59,41 @@ defmodule WardrikSlack do
     [{Task.Supervisor, name: tasks(channel)} | socket]
   end
 
+  @doc """
+  Checks the tokens a channel's options give Slack: its bot `:token`, with `auth.test`, and its
+  `:app_token`, by opening a Socket Mode connection's URL. Returns where the bot posts, or why
+  Slack refused. A channel with no `:token` keeps one for each workspace, which it doesn't check.
+
+      WardrikSlack.check(token: "xoxb-...", app_token: "xapp-...")
+      #=> {:ok, "posts as @wardrik in Acme"}
+  """
+  @spec check(keyword()) :: {:ok, String.t()} | {:error, String.t()}
+  def check(opts) do
+    req_options = [retry: false] ++ Keyword.get(opts, :req_options, [])
+
+    with {:ok, said} <- bot(opts[:token], req_options),
+         :ok <- app(opts[:app_token], req_options),
+         do: {:ok, said}
+  end
+
+  defp bot(nil, _req_options), do: {:ok, "keeps a token for each workspace it's added to"}
+
+  defp bot(token, req_options) do
+    case API.post("auth.test", token, %{}, req_options) do
+      {:ok, %{"user" => user, "team" => team}} -> {:ok, "posts as @#{user} in #{team}"}
+      {:error, why} -> {:error, "Slack refused its token: #{inspect(why)}"}
+    end
+  end
+
+  defp app(nil, _req_options), do: :ok
+
+  defp app(token, req_options) do
+    case API.post("apps.connections.open", token, %{}, req_options) do
+      {:ok, _url} -> :ok
+      {:error, why} -> {:error, "Slack refused its app_token: #{inspect(why)}"}
+    end
+  end
+
   @doc "Returns the task supervisor the channel acts on what Slack sends under."
   @spec tasks(Channel.t()) :: atom()
   def tasks(%Channel{wardrik: wardrik, name: name}),

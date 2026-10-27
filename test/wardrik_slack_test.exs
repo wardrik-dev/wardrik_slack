@@ -24,6 +24,18 @@ defmodule WardrikSlackTest do
     }
   end
 
+  test "checks the tokens it's given", context do
+    req_options = [req_options: context.channel.options[:req_options]]
+
+    assert WardrikSlack.check([token: "xoxb-test"] ++ req_options) ==
+             {:ok, "posts as @wardrik in Acme"}
+
+    assert WardrikSlack.check([token: "xoxb-test", app_token: "xapp-test"] ++ req_options) ==
+             {:error, ~s(Slack refused its app_token: "invalid_auth")}
+
+    assert {:ok, "keeps a token for each workspace" <> _} = WardrikSlack.check(req_options)
+  end
+
   describe "requests" do
     test "answers Slack's check of the Request URL", context do
       body = JSON.encode!(%{type: "url_verification", challenge: "c4ll3nge"})

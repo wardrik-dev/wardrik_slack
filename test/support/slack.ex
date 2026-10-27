@@ -210,6 +210,7 @@ defmodule WardrikSlack.Test do
     do: %{ok: true, permalink: "https://acme.slack.com/archives/C1/p#{ts}"}
 
   defp reply("apps.connections.open", _params), do: %{ok: false, error: "invalid_auth"}
+  defp reply("auth.test", _params), do: %{ok: true, user: "wardrik", team: "Acme"}
 
   defp reply("oauth.v2.access", %{"code" => "good"}),
     do: %{ok: true, access_token: "xoxb-globex", team: %{id: "T7"}, bot_user_id: "UBOT"}
