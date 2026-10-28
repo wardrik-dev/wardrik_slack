@@ -46,6 +46,7 @@ defmodule WardrikSlack do
   alias WardrikSlack.Approvers
   alias WardrikSlack.Blocks
   alias WardrikSlack.Messages
+  alias WardrikSlack.Rooms
 
   @impl Wardrik.Channel
   def request(opts, request),
@@ -177,7 +178,8 @@ defmodule WardrikSlack do
          %Outbound{body: {:notice, %{kind: :parked} = notice}, approvers: [_ | _] = approvers} =
            outbound
        ) do
-    message = WardrikSlack.Notices.message(notice, approvers)
+    message =
+      WardrikSlack.Notices.message(notice, approvers, Rooms.shown(workspace, notice.agent))
 
     with {:ok, %{"ts" => ts} = posted} <- message(workspace, outbound, message) do
       from = from(workspace, %{outbound | thread: ts}, "a notice")
@@ -187,7 +189,12 @@ defmodule WardrikSlack do
   end
 
   defp posted(workspace, %Outbound{body: {:notice, notice}, approvers: approvers} = outbound),
-    do: message(workspace, outbound, WardrikSlack.Notices.message(notice, approvers))
+    do:
+      message(
+        workspace,
+        outbound,
+        WardrikSlack.Notices.message(notice, approvers, Rooms.shown(workspace, notice.agent))
+      )
 
   defp posted(workspace, %Outbound{body: {:said, text}} = outbound),
     do: message(workspace, outbound, %{text: text, blocks: [Blocks.context(text)]})

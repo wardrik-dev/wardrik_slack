@@ -321,7 +321,7 @@ defmodule WardrikSlackTest do
       {:ok, _message} = Wardrik.Agent.ask(context.owner, "acme/digest", content: "Go")
 
       assert_receive {:slack, "chat.postMessage",
-                      %{"channel" => "#news", "text" => "acme/digest: Three things happened."} =
+                      %{"channel" => "#news", "text" => "digest: Three things happened."} =
                         posted},
                      1_000
 
@@ -341,7 +341,7 @@ defmodule WardrikSlackTest do
       assert_receive {:slack, "chat.postMessage",
                       %{
                         "channel" => "#ops",
-                        "text" => "`acme/triage` waits on @maria to approve `echo`."
+                        "text" => "`triage` waits on @maria to approve `echo`."
                       }},
                      1_000
 
