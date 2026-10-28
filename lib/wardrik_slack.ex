@@ -148,12 +148,13 @@ defmodule WardrikSlack do
          workspace,
          %Outbound{body: {:waiting, calls}, approvers: [_ | _] = approvers} = outbound
        ) do
-    from = from(workspace, outbound)
+    agent = waiting_agent(workspace, calls)
+    from = from(workspace, outbound, agent)
     message = WardrikSlack.Waiting.message(calls, approvers)
 
     case Enum.filter(
            Approvers.members(workspace, approvers),
-           &asked?(workspace, &1, message, from)
+           &asked?(workspace, &1, message, from, agent)
          ) do
       [] ->
         Logger.warning(
@@ -178,12 +179,17 @@ defmodule WardrikSlack do
          %Outbound{body: {:notice, %{kind: :parked} = notice}, approvers: [_ | _] = approvers} =
            outbound
        ) do
-    message =
-      WardrikSlack.Notices.message(notice, approvers, Rooms.shown(workspace, notice.agent))
+    agent = Rooms.shown(workspace, notice.agent)
+    message = WardrikSlack.Notices.message(notice, approvers, agent)
 
     with {:ok, %{"ts" => ts} = posted} <- message(workspace, outbound, message) do
-      from = from(workspace, %{outbound | thread: ts}, "a notice")
-      Enum.each(Approvers.members(workspace, approvers), &asked?(workspace, &1, message, from))
+      from = from(workspace, %{outbound | thread: ts}, agent, "a notice")
+
+      Enum.each(
+        Approvers.members(workspace, approvers),
+        &asked?(workspace, &1, message, from, agent)
+      )
+
       {:ok, posted}
     end
   end
@@ -199,13 +205,17 @@ defmodule WardrikSlack do
   defp posted(workspace, %Outbound{body: {:said, text}} = outbound),
     do: message(workspace, outbound, %{text: text, blocks: [Blocks.context(text)]})
 
-  defp asked?(_workspace, {approver, :error}, _message, _from) do
+  defp asked?(_workspace, {approver, :error}, _message, _from, _agent) do
     Logger.warning("Slack has no member #{approver}, so they aren't asked directly.")
     false
   end
 
-  defp asked?(workspace, {approver, {:ok, member}}, %{text: text, blocks: [heading | rest]}, from) do
-    message = %{channel: member, text: text, blocks: [heading, from | rest]}
+  defp asked?(workspace, {approver, {:ok, member}}, %{blocks: [heading | rest]}, from, agent) do
+    message = %{
+      channel: member,
+      text: "`#{agent}` is waiting on you.",
+      blocks: [heading, from | rest]
+    }
 
     case API.post_in(workspace, "chat.postMessage", message) do
       {:ok, _posted} ->
@@ -217,12 +227,18 @@ defmodule WardrikSlack do
     end
   end
 
-  defp from(workspace, %Outbound{room: room, thread: thread}, what \\ "a thread") do
+  defp from(workspace, %Outbound{room: room, thread: thread}, agent, what \\ "a thread") do
     case API.read_in(workspace, "chat.getPermalink", %{channel: room, message_ts: thread}) do
-      {:ok, %{"permalink" => link}} -> Blocks.context("From <#{link}|#{what}> in <##{room}>.")
-      _unlinked -> Blocks.context("From #{what} in <##{room}>.")
+      {:ok, %{"permalink" => link}} ->
+        Blocks.context("From `#{agent}`, in <#{link}|#{what}> in <##{room}>.")
+
+      _unlinked ->
+        Blocks.context("From `#{agent}`, in #{what} in <##{room}>.")
     end
   end
+
+  defp waiting_agent(workspace, [%WardrikChannel.Waiting{conversation: conversation} | _rest]),
+    do: Rooms.shown(workspace, Wardrik.AgentID.agent(conversation))
 
   defp reply(""), do: %{text: "_It answered nothing._"}
   defp reply(text), do: %{text: Blocks.clip(text, 3_000), blocks: [Blocks.markdown(text)]}

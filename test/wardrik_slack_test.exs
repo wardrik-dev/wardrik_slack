@@ -162,12 +162,15 @@ defmodule WardrikSlackTest do
       assert_receive {:slack, "chat.postMessage",
                       %{
                         "channel" => "U1",
-                        "text" => "Waiting on @maria to approve `echo`.",
+                        "text" => "`triage` is waiting on you.",
                         "blocks" => blocks
                       }},
                      1_000
 
-      assert JSON.encode!(blocks) =~ "https://acme.slack.com/archives/C1/p1.1|a thread"
+      assert JSON.encode!(blocks) =~ "Waiting on @maria to approve `echo`."
+
+      assert JSON.encode!(blocks) =~
+               "From `triage`, in <https://acme.slack.com/archives/C1/p1.1|a thread>"
 
       assert_receive {:slack, "chat.postMessage",
                       %{
@@ -211,7 +214,11 @@ defmodule WardrikSlackTest do
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
-                      %{"channel" => "U1", "blocks" => blocks, "text" => "Waiting" <> _}},
+                      %{
+                        "channel" => "U1",
+                        "blocks" => blocks,
+                        "text" => "`triage` is waiting on you."
+                      }},
                      1_000
 
       [%{"elements" => [_approve, deny]}] =
