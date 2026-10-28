@@ -1,13 +1,10 @@
 defmodule WardrikSlack.SocketTest do
   use ExUnit.Case, async: false
-  use Mimic
 
   import WardrikSlack.Test
 
   alias WardrikSlack.Socket
   alias WardrikSlack.Socket.Connection
-
-  setup :set_mimic_global
 
   defp frame(fields), do: {:text, JSON.encode!(fields)}
 
@@ -83,7 +80,7 @@ defmodule WardrikSlack.SocketTest do
   end
 
   describe "Socket Mode" do
-    setup :start_wardrik
+    setup :start_slack
 
     @tag slack: [app_token: "xapp-test", signing_secret: nil]
     test "asks Slack where to connect with the app-level token" do

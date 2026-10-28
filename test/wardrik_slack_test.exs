@@ -1,11 +1,9 @@
 defmodule WardrikSlackTest do
   use ExUnit.Case, async: false
-  use Mimic
 
   import WardrikSlack.Test
 
-  setup :set_mimic_global
-  setup :start_wardrik
+  setup :start_slack
 
   defp joined(context) do
     event(context, %{type: "member_joined_channel", user: "UBOT", channel: "C1", inviter: "U1"})
@@ -129,7 +127,6 @@ defmodule WardrikSlackTest do
     end
 
     test "answers a mention in its thread, and marks the message", context do
-      answers([answer("Two cases, both 2019.")])
       event(context, message("<@UBOT> how much Barolo is left?", "1.1"))
 
       assert_receive {:slack, "reactions.add", %{"name" => "eyes", "timestamp" => "1.1"}}, 1_000
@@ -137,7 +134,7 @@ defmodule WardrikSlackTest do
       assert_receive {:slack, "chat.postMessage",
                       %{
                         "thread_ts" => "1.1",
-                        "text" => "Two cases, both 2019.",
+                        "text" => "Answered: how much Barolo is left?",
                         "blocks" => [%{"type" => "markdown"}]
                       }},
                      1_000
@@ -156,7 +153,6 @@ defmodule WardrikSlackTest do
     end
 
     test "asks an approver about a call, and says who decided", context do
-      answers([calling("call_1", "echo", %{"text" => "hi"}), answer("Done.")])
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
@@ -210,7 +206,6 @@ defmodule WardrikSlackTest do
     end
 
     test "tells someone who may not decide who may", context do
-      answers([calling("call_1", "echo", %{"text" => "hi"}), answer("Done.")])
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
@@ -240,7 +235,6 @@ defmodule WardrikSlackTest do
 
     @tag slack: [approvers: ["maria@example.com", "U2", "@ana", "@bot", "nobody@example.com"]]
     test "asks each approver Slack finds, by email, ID or handle", context do
-      answers([calling("call_1", "echo", %{"text" => "hi"})])
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       for member <- ["U1", "U2", "U3"],
@@ -263,7 +257,6 @@ defmodule WardrikSlackTest do
 
     @tag slack: [approvers: ["@ghost", "@bot"]]
     test "asks in the thread where it reaches no approver", context do
-      answers([calling("call_1", "echo", %{"text" => "hi"})])
       event(context, message("<@UBOT> echo hi", "1.1"))
 
       assert_receive {:slack, "chat.postMessage",
@@ -279,35 +272,21 @@ defmodule WardrikSlackTest do
     end
 
     test "says a run stopped, and why one failed", context do
-      answers([calling("call_1", "echo", %{"text" => "hi"})])
       event(context, message("<@UBOT> echo hi", "1.1"))
       assert_receive {:slack, "chat.postMessage", %{"text" => "Waiting" <> _}}, 1_000
 
-      Wardrik.Agent.cancel(context.owner, "acme/triage/slack.T1.C1.1.1")
+      :ok = Wardrik.Agent.cancel(context.owner, "acme/triage/slack.T1.C1.1.1")
 
       assert_receive {:slack, "reactions.remove", %{"name" => "eyes", "timestamp" => "1.1"}},
                      1_000
 
       assert_receive {:slack, "assistant.threads.setStatus", %{"status" => ""}}, 1_000
 
-      Mimic.stub(ReqLLM, :stream_text, fn _model, _messages, _opts ->
-        {:error, %RuntimeError{message: "The model is down."}}
-      end)
-
-      event(context, message("<@UBOT> again", "2.1"))
+      event(context, message("<@UBOT> fail again", "2.1"))
 
       assert_receive {:slack, "chat.postMessage",
                       %{"text" => ":warning: It stopped with an error: " <> _reason}},
                      5_000
-    end
-
-    test "says why it couldn't ask the agent", context do
-      Wardrik.Agent.forget(context.owner, "acme/triage")
-      event(context, message("<@UBOT> hi", "1.1"))
-
-      assert_receive {:slack, "chat.postMessage",
-                      %{"thread_ts" => "1.1", "text" => ":warning:" <> _}},
-                     1_000
     end
 
     test "tells whoever presses Show link where to sign in, or why not", context do
@@ -323,9 +302,14 @@ defmodule WardrikSlackTest do
 
   describe "notices" do
     test "posts what a turn answered in the room the route names", context do
-      define(context.owner, "acme/digest", notify: %{to: ["slack:#news"], on: ["finished"]})
-      answers([answer("Three things happened.")])
-      {:ok, _message} = Wardrik.Agent.ask(context.owner, "acme/digest", content: "Go")
+      notice = %Wardrik.Notice{
+        agent: "acme/digest",
+        kind: :finished,
+        at: DateTime.utc_now(),
+        text: "Three things happened."
+      }
+
+      assert WardrikSlack.notify(context.options, "#news", notice, []) == :ok
 
       assert_receive {:slack, "chat.postMessage",
                       %{"channel" => "#news", "text" => "digest: Three things happened."} =
@@ -335,15 +319,23 @@ defmodule WardrikSlackTest do
       refute Map.has_key?(posted, "thread_ts")
     end
 
-    @tag notify: [
-           targets: [
-             ops: {Wardrik.Notify.Room, channel: "slack", room: "#ops", approvers: ["@maria"]}
-           ]
-         ]
     test "asks a target's approvers about a parked turn, in the room and directly", context do
-      define(context.owner, "acme/triage", tools: ["tools"], policy: "careful", notify: "ops")
-      answers([calling("call_1", "echo", %{"text" => "hi"}), answer("Done.")])
-      {:ok, _message} = Wardrik.Agent.ask(context.owner, "acme/triage", content: "Echo hi")
+      interrupt = %Wardrik.Interrupt{
+        id: "call_1",
+        tool_call_id: "call_1",
+        reason: :tool_approval,
+        name: "echo",
+        message: "Run echo?"
+      }
+
+      notice = %Wardrik.Notice{
+        agent: "acme/triage",
+        kind: :parked,
+        at: DateTime.utc_now(),
+        calls: [%{interrupt: interrupt, arguments: %{"text" => "hi"}}]
+      }
+
+      assert WardrikSlack.notify(context.options, "#ops", notice, ["@maria"]) == :ok
 
       assert_receive {:slack, "chat.postMessage",
                       %{

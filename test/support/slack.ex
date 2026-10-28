@@ -1,34 +1,21 @@
-defmodule WardrikSlack.Test.Tools do
-  @moduledoc "A capability with one tool, `echo`."
-  @behaviour WardrikCore.Capability
-
-  @impl WardrikCore.Capability
-  def tools(_context, _opts) do
-    [
-      WardrikCore.Tool.new!(
-        name: "echo",
-        description: "Echoes text",
-        schema: [text: [type: :string]],
-        run: fn args, _context -> {:ok, Map.get(args, :text, "")} end
-      )
-    ]
-  end
-end
-
 defmodule WardrikSlack.Test do
   @moduledoc """
-  Starts a Wardrik with a Slack channel for a test, in front of a fake Slack that sends the test
-  each call it takes, as `{:slack, method, params}`.
+  Runs a Slack channel for a test, on the test's own server over a real store and events, in front
+  of a fake Slack that sends the test each call it takes, as `{:slack, method, params}`.
   """
 
   import ExUnit.Callbacks, only: [start_supervised!: 1]
 
-  @model "anthropic:claude-haiku-4-5"
   @people %{"U1" => "maria", "U2" => "jon", "U3" => "ana"}
 
-  def start_wardrik(context) do
-    store = WardrikStore.ETS.new(name: :"store #{context.test}")
-    name = :"wardrik #{context.test}"
+  alias WardrikTesting.Server
+
+  def start_slack(context) do
+    n = System.unique_integer([:positive])
+    name = :"wardrik #{n}"
+    store = WardrikStore.ETS.new(name: :"store #{n}")
+    events = Server.events(name)
+    vault = :"vault #{n}"
     test = self()
 
     Req.Test.set_req_test_to_shared(%{})
@@ -45,39 +32,40 @@ defmodule WardrikSlack.Test do
       |> Keyword.merge(Map.get(context, :slack, []))
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
 
+    options =
+      slack ++
+        [
+          server: Server,
+          wardrik: name,
+          events: events,
+          vault: vault,
+          channel: "slack",
+          store: store
+        ]
+
     start_supervised!({WardrikStore, store})
 
     start_supervised!(
-      {Wardrik,
-       Wardrik.new(
-         name: name,
-         store: store,
-         keys: [WardrikVault.generate_key()],
-         channels: [slack: {WardrikSlack, slack}],
-         capabilities: [tools: WardrikSlack.Test.Tools],
-         policies: [careful: [ask: ["echo"]]],
-         notify: Map.get(context, :notify),
-         defaults: %{"retries" => %{"attempts" => 0, "on_exhausted" => "fail"}}
-       )}
+      {WardrikEvents, name: events, store: store, deployment: "test", retention: :infinity}
     )
 
-    owner = Wardrik.as(name, "acme/@maria", roles: [:owner], resources: ["*"])
+    start_supervised!(
+      {WardrikVault, name: vault, store: store, keys: [WardrikVault.generate_key()]}
+    )
 
-    channel =
-      WardrikChannel.channel(
-        WardrikSlack,
-        slack ++ [wardrik: name, channel: "slack", store: store]
-      )
+    :ok = Server.start(name)
+    start_supervised!(WardrikSlack.child_spec(options))
 
-    %{wardrik: name, owner: owner, channel: channel}
+    owner = Wardrik.Scope.new(Server, name, "acme/@maria", roles: [:owner], resources: ["*"])
+    channel = WardrikChannel.channel(WardrikSlack, options)
+
+    %{wardrik: name, owner: owner, channel: channel, options: options, events: events}
   end
 
-  def define(owner, id, fields \\ []) do
-    {:ok, _agent} = Wardrik.Agent.define(owner, id, [model: @model] ++ fields)
-    :ok
-  end
+  def define(owner, id, fields \\ []),
+    do: Server.add_agent(owner.wardrik, id, fields[:channels] || [], fields[:description])
 
-  @doc "Sends Slack's signed request to the channel, through the Wardrik, and returns the answer."
+  @doc "Sends Slack's signed request to the channel, and returns its answer."
   def deliver(context, path, body, opts \\ []) do
     at = Keyword.get(opts, :at, System.os_time(:second))
     secret = Keyword.get(opts, :secret, "s3cret")
@@ -87,15 +75,7 @@ defmodule WardrikSlack.Test do
       "x-slack-signature" => WardrikSlack.HTTP.signature(secret, at, body)
     }
 
-    scope = Wardrik.as(context.wardrik, "anonymous")
-
-    {:ok, answer} =
-      Wardrik.Channel.deliver(scope, Keyword.get(opts, :channel, "slack"), path,
-        body: body,
-        headers: headers
-      )
-
-    answer
+    WardrikSlack.request(context.options, %{path: path, body: body, headers: headers})
   end
 
   def event(context, event),
@@ -132,29 +112,6 @@ defmodule WardrikSlack.Test do
       Map.new(Keyword.delete(opts, :user))
     )
   end
-
-  def answers(responses) do
-    {:ok, queue} = Agent.start_link(fn -> responses end)
-
-    Mimic.stub(ReqLLM.StreamResponse, :process_stream, fn response, _opts -> {:ok, response} end)
-
-    Mimic.stub(ReqLLM, :stream_text, fn _model, _messages, _opts ->
-      {:ok, Agent.get_and_update(queue, fn [next | rest] -> {next, rest} end)}
-    end)
-  end
-
-  def answer(text), do: response(ReqLLM.Context.assistant(text))
-
-  def calling(id, name, args),
-    do:
-      response(
-        ReqLLM.Context.assistant("",
-          tool_calls: [ReqLLM.ToolCall.new(id, name, JSON.encode!(args))]
-        )
-      )
-
-  defp response(message),
-    do: %ReqLLM.Response{id: "resp", model: "test", context: nil, message: message}
 
   defp slack(conn, test) do
     {:ok, body, conn} = Plug.Conn.read_body(conn)

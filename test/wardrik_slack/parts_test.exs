@@ -1,6 +1,5 @@
 defmodule WardrikSlack.PartsTest do
   use ExUnit.Case, async: false
-  use Mimic
 
   import WardrikSlack.Test
 
@@ -9,8 +8,7 @@ defmodule WardrikSlack.PartsTest do
   alias WardrikSlack.Dispatch
   alias WardrikSlack.Rooms
 
-  setup :set_mimic_global
-  setup :start_wardrik
+  setup :start_slack
 
   defp waiting(reason, name),
     do: %Waiting{

@@ -1,14 +1,12 @@
 defmodule WardrikSlack.InstallTest do
   use ExUnit.Case, async: false
-  use Mimic
 
   import WardrikSlack.Test
 
   alias WardrikChannel.Installation
   alias WardrikSlack.Install
 
-  setup :set_mimic_global
-  setup :start_wardrik
+  setup :start_slack
 
   defp state(url),
     do: url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("state")
@@ -21,7 +19,7 @@ defmodule WardrikSlack.InstallTest do
          redirect_uri: "https://myapp.example.com/slack/installed"
        ]
   test "adds the app to a workspace for the owner the link was made for", context do
-    {:ok, channel} = WardrikChannel.fetch(context.wardrik, "slack")
+    channel = context.channel
     {:ok, url} = Install.url(channel, "globex", return_to: "/settings")
 
     assert url =~ "https://slack.com/oauth/v2/authorize?"
@@ -67,7 +65,7 @@ defmodule WardrikSlack.InstallTest do
   end
 
   test "is refused for a channel added with its token alone", context do
-    {:ok, channel} = WardrikChannel.fetch(context.wardrik, "slack")
+    channel = context.channel
     assert {:error, "slack is added with its token alone" <> _} = Install.url(channel, "acme")
     assert "users:read.email" in Install.scopes()
   end
