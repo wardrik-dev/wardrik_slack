@@ -3,7 +3,7 @@ defmodule WardrikSlack.InstallTest do
 
   import WardrikSlack.Test
 
-  alias WardrikChannel.Installation
+  alias Wardrik.Channel.Installation
   alias WardrikSlack.Install
 
   setup :start_slack
@@ -29,6 +29,7 @@ defmodule WardrikSlack.InstallTest do
     assert {:ok,
             %Installation{
               workspace: "T7",
+              name: "Globex",
               owner: "globex",
               token: "xoxb-globex",
               approvers: ["@maria"]
@@ -62,6 +63,30 @@ defmodule WardrikSlack.InstallTest do
     callback = %{type: "event_callback", team_id: "T7", event: %{type: "tokens_revoked"}}
     deliver(context, "events", JSON.encode!(callback))
     assert WardrikChannel.Channel.installation(channel, "T7") == :error
+  end
+
+  @tag slack: [
+         token: nil,
+         installations: :stored,
+         client_id: "1.2",
+         client_secret: "c13nt",
+         redirect_uri: "https://myapp.example.com/slack/installed"
+       ]
+  test "is added and taken out as a channel adapter is", context do
+    channel = context.channel
+    {:ok, url} = WardrikSlack.install_url(channel, "globex", return_to: "/settings")
+
+    assert {:ok, %Installation{workspace: "T7", name: "Globex"}, "/settings"} =
+             WardrikSlack.installed(channel, "globex", %{"code" => "good", "state" => state(url)})
+
+    assert WardrikSlack.uninstall(channel, "T7") == :ok
+
+    assert_received {:slack, "apps.uninstall",
+                     %{"client_id" => "1.2", "client_secret" => "c13nt"}}
+
+    assert WardrikChannel.Channel.installation(channel, "T7") == :error
+
+    assert WardrikSlack.uninstall(channel, "T7") == :ok
   end
 
   test "is refused for a channel added with its token alone", context do

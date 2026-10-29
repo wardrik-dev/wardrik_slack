@@ -21,8 +21,8 @@ defmodule WardrikSlack.Install do
   channel's `approvers`.
   """
 
+  alias Wardrik.Channel.Installation
   alias WardrikChannel.Channel
-  alias WardrikChannel.Installation
   alias WardrikSlack.API
 
   @authorize "https://slack.com/oauth/v2/authorize"
@@ -105,11 +105,12 @@ defmodule WardrikSlack.Install do
       )
 
     case API.call("oauth.v2.access", [form: form] ++ API.req_options(channel)) do
-      {:ok, %{"access_token" => token, "team" => %{"id" => team}}} ->
+      {:ok, %{"access_token" => token, "team" => %{"id" => team} = workspace}} ->
         {:ok,
          %Installation{
            channel: channel.name,
            workspace: team,
+           name: workspace["name"],
            owner: owner,
            token: token,
            approvers: channel.approvers

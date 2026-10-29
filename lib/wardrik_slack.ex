@@ -110,6 +110,33 @@ defmodule WardrikSlack do
       )
   end
 
+  @doc "Returns where someone acting for `owner` adds the app to a workspace. See `WardrikSlack.Install`."
+  @impl WardrikChannel
+  def install_url(channel, owner, opts), do: WardrikSlack.Install.url(channel, owner, opts)
+
+  @doc "Adds the app to the workspace Slack sent someone back from. See `WardrikSlack.Install`."
+  @impl WardrikChannel
+  def installed(channel, owner, query), do: WardrikSlack.Install.installed(channel, owner, query)
+
+  @doc """
+  Asks Slack to uninstall the app from `workspace`, which it confirms with an `app_uninstalled`
+  event, and forgets the workspace either way.
+  """
+  @impl WardrikChannel
+  def uninstall(channel, workspace) do
+    with {:ok, installation} <- Channel.installation(channel, workspace) do
+      credentials = %{
+        client_id: channel.options[:client_id],
+        client_secret: channel.options[:client_secret]
+      }
+
+      _asked =
+        API.read("apps.uninstall", installation.token, credentials, API.req_options(channel))
+    end
+
+    Channel.uninstall(channel, workspace)
+  end
+
   defp known_as(workspace, id) do
     case API.read_in(workspace, "users.info", %{user: id}) do
       {:ok, %{"user" => user}} -> ["@" <> user["name"], get_in(user, ["profile", "email"])]
