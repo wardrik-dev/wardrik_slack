@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0-rc.1 (2026-10-30)
 
 - A `WardrikChannel` adapter for a Slack app: agents answer mentions in threads, and replies in
   them, as the person who wrote.
