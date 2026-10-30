@@ -1,38 +1,50 @@
 defmodule WardrikSlack do
   @moduledoc """
-  Wardrik in Slack: a `WardrikChannel` adapter for a Slack app of your own. Agents answer in
-  threads, and ask there, with Approve and Deny, before a call they can't make alone.
+  Slack for Wardrik. A `WardrikChannel` adapter for a Slack app of your own.
 
-      channels: [
-        slack:
-          {WardrikSlack,
-           token: "xoxb-...",
-           app_token: "xapp-...",
-           owner: "acme",
-           approvers: ["@maria"]}
-      ]
+  Agents answer in threads. Before a call they can't make alone, they ask there, with Approve and
+  Deny buttons.
 
-  It takes WardrikChannel's options, and Slack's own:
+      config :my_app, MyApp.Wardrik,
+        channels: [
+          slack:
+            {WardrikSlack,
+             token: "xoxb-...",
+             signing_secret: "...",
+             owner: "acme",
+             approvers: ["@maria"]}
+        ]
 
-    * `:token` - the app's bot token, `xoxb-...`, which adds it to the one workspace it reaches
-    * `:signing_secret` - what Slack signs its requests with, to take them over HTTP at
-      `/v1/channels/{channel}/events` and `/v1/channels/{channel}/actions`
-    * `:app_token` - an app-level token, `xapp-...`, with `connections:write`, to take them over
-      Socket Mode instead, with no public address; for testing
-    * `:client_id`, `:client_secret` and `:redirect_uri` - to add one app to many workspaces;
-      see `WardrikSlack.Install`
-    * `:req_options` - merged into every request to Slack
+  ## Options
 
-  Over Socket Mode, give Wardrik a Slack app of its own. Slack spreads an app's events across every
-  connection open for it.
+  Takes `WardrikChannel`'s options, such as `:owner` and `:approvers`, and these:
 
-  `approvers` are named by `@handle`, email address or Slack member ID. A call an agent waits on is
-  sent to each of them in the app's Messages tab, with a link to its thread, and the thread says
-  who it waits on. Where none of them can be reached, it's asked in the thread. While an agent works, its
-  thread shows what it's doing as the app's status. A message the agent takes gets :eyes:, and
-  :white_check_mark: once it's answered.
+    * `:token` - the bot token, `xoxb-...`. Adds the app to the one workspace it belongs to.
+    * `:signing_secret` - takes Slack's requests over HTTP, at `/v1/channels/{channel}/events`
+      and `/v1/channels/{channel}/actions`. See `WardrikSlack.HTTP`.
+    * `:app_token` - an app-level token, `xapp-...`, with `connections:write`. Takes Slack's
+      requests over Socket Mode instead, with no public address. For testing. See
+      `WardrikSlack.Socket`.
+    * `:client_id`, `:client_secret`, `:redirect_uri` - add one app to many workspaces. See
+      `WardrikSlack.Install`.
+    * `:req_options` - merged into every request to Slack.
 
-  Reach for this when your people talk in Slack.
+  Over Socket Mode, give Wardrik a Slack app of its own. Slack spreads an app's events across
+  every open connection.
+
+  ## Approvers
+
+  `:approvers` are named by `@handle`, email address or Slack member ID, or `:anyone`.
+
+    1. A call an agent waits on is sent to each approver in the app's Messages tab, with a link
+       to its thread.
+    2. The thread says who it waits on.
+    3. If Slack reaches none of them, the call is asked in the thread instead.
+
+  ## In the thread
+
+    * While an agent works, the thread shows what it's doing as the app's status.
+    * A message the agent takes gets :eyes:, then :white_check_mark: once it's answered.
   """
 
   use WardrikChannel
@@ -61,12 +73,16 @@ defmodule WardrikSlack do
   end
 
   @doc """
-  Checks the tokens a channel's options give Slack: its bot `:token`, with `auth.test`, and its
-  `:app_token`, by opening a Socket Mode connection's URL. Returns where the bot posts, or why
-  Slack refused. A channel with no `:token` keeps one for each workspace, which it doesn't check.
+  Checks a channel's tokens with Slack.
 
       WardrikSlack.check(token: "xoxb-...", app_token: "xapp-...")
       #=> {:ok, "posts as @wardrik in Acme"}
+
+      WardrikSlack.check(token: "xoxb-wrong")
+      #=> {:error, "Slack refused its token: \"invalid_auth\""}
+
+  Checks `:token` with `auth.test`, and `:app_token` by opening a Socket Mode URL. Without
+  `:token`, the channel keeps a token for each workspace, and those aren't checked.
   """
   @spec check(keyword()) :: {:ok, String.t()} | {:error, String.t()}
   def check(opts) do
@@ -95,12 +111,12 @@ defmodule WardrikSlack do
     end
   end
 
-  @doc "Returns the task supervisor the channel acts on what Slack sends under."
+  @doc "Returns the name of the task supervisor that handles what Slack sends the channel."
   @spec tasks(Channel.t()) :: atom()
   def tasks(%Channel{wardrik: wardrik, name: name}),
     do: Module.concat([wardrik, "Channels", name, "Tasks"])
 
-  @doc "Returns whether `names`, each a `@handle`, an email address or a member ID, include `member`."
+  @doc "Returns whether `member` is among `names`. Each name is a `@handle`, email address or member ID."
   @impl WardrikChannel
   def include?(channel, installation, names, member) do
     member.id in names or
@@ -110,17 +126,18 @@ defmodule WardrikSlack do
       )
   end
 
-  @doc "Returns where someone acting for `owner` adds the app to a workspace. See `WardrikSlack.Install`."
+  @doc "Returns the URL where someone acting for `owner` adds the app. See `WardrikSlack.Install.url/3`."
   @impl WardrikChannel
   def install_url(channel, owner, opts), do: WardrikSlack.Install.url(channel, owner, opts)
 
-  @doc "Adds the app to the workspace Slack sent someone back from. See `WardrikSlack.Install`."
+  @doc "Adds the app to a workspace once Slack sends someone back. See `WardrikSlack.Install.installed/3`."
   @impl WardrikChannel
   def installed(channel, owner, query), do: WardrikSlack.Install.installed(channel, owner, query)
 
   @doc """
-  Asks Slack to uninstall the app from `workspace`, which it confirms with an `app_uninstalled`
-  event, and forgets the workspace either way.
+  Uninstalls the app from `workspace` and forgets the workspace.
+
+  The workspace is forgotten even if Slack refuses. Slack confirms with an `app_uninstalled` event.
   """
   @impl WardrikChannel
   def uninstall(channel, workspace) do

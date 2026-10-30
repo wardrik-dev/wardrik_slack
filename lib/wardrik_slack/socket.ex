@@ -1,13 +1,14 @@
 defmodule WardrikSlack.Socket do
   @moduledoc """
-  A Socket Mode connection out to Slack, opened with the channel's `app_token`, so Slack reaches
-  your app with no public address. It's for testing: Slack wants an app in use to take its events
-  over HTTP.
+  Connects to Slack over Socket Mode with the channel's `:app_token`. Needs no public address.
 
-  It asks Slack where to connect, connects, and acknowledges each envelope. What an envelope
-  carries is handed to `WardrikSlack.Dispatch` in a task. A message is acknowledged once it's
-  handled, so one lost to a crash is sent again. When Slack closes the connection, as it does every
-  few hours, it connects again, waiting longer after each failure, up to a minute.
+  For testing. Slack expects apps in use to take events over HTTP. See `WardrikSlack.HTTP`.
+
+    * Each envelope is handed to `WardrikSlack.Dispatch` in a task.
+    * Messages are acknowledged after they're handled, so Slack resends one lost to a crash. Other
+      envelopes are acknowledged at once.
+    * When the connection closes, as Slack does every few hours, it reconnects. Backoff doubles
+      from one second after each failure, up to a minute.
   """
 
   use GenServer
@@ -27,8 +28,10 @@ defmodule WardrikSlack.Socket do
   def start_link(%Channel{} = channel), do: GenServer.start_link(__MODULE__, channel)
 
   @doc """
-  Reads a text frame from Slack: `:hello`, `:disconnect`, an envelope to acknowledge now with what
-  it carries, a message to acknowledge once it's handled, or `:ignore`.
+  Parses a text frame from Slack.
+
+  Returns `:hello`, `:disconnect`, `{:ack, id, work}` to acknowledge now,
+  `{:ack_after, id, {:message, callback}}` to acknowledge once handled, or `:ignore`.
   """
   @spec envelope(String.t()) ::
           :hello

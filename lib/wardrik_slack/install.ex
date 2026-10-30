@@ -1,24 +1,34 @@
 defmodule WardrikSlack.Install do
   @moduledoc """
-  Adds one Slack app to many workspaces, one for each org. Give the channel `client_id` and
-  `client_secret`, from **Basic Information**, and `installations: :stored`. Set the app's
-  **Redirect URL**, under **OAuth & Permissions**, to a route of your app's own, and pass it as
-  `redirect_uri` too.
+  Adds one Slack app to many workspaces, one for each org.
 
-      {:ok, channel} = WardrikChannel.fetch(MyApp.Wardrik, "slack")
-      {:ok, url} = WardrikSlack.Install.url(channel, "acme", return_to: "/settings/slack")
+      slack:
+        {WardrikSlack,
+         client_id: "...",
+         client_secret: "...",
+         redirect_uri: "https://app.example.com/slack/installed",
+         signing_secret: "...",
+         installations: :stored,
+         approvers: ["@maria"]}
 
-  Send someone signed in for the org to `url`. Slack sends them back to your route, which hands
-  what Slack sent to `installed/3`, for the org they act for:
+  `:client_id` and `:client_secret` are under **Basic Information**. Set the app's **Redirect URL**,
+  under **OAuth & Permissions**, to a route in your app, and pass the same URL as `:redirect_uri`.
+  Stored tokens are sealed with Wardrik's `:keys`.
 
-      case WardrikSlack.Install.installed(channel, "acme", conn.query_params) do
+  Reach these through `Wardrik.Channels`:
+
+      # 1. Send someone acting for the org to Slack
+      {:ok, url} = Wardrik.Channels.install_url(MyApp.Wardrik, "slack", "acme", return_to: "/settings")
+
+      # 2. In the route Slack sends them back to
+      case Wardrik.Channels.installed(MyApp.Wardrik, "slack", "acme", conn.query_params) do
         {:ok, _installation, return_to} -> redirect(conn, external: return_to || "/")
         {:error, message} -> send_resp(conn, 400, message)
       end
 
-  The link lasts ten minutes, and carries the owner it was made for, signed with the client
-  secret, so someone else's link can't add a workspace for you. A new workspace takes the
-  channel's `approvers`.
+  The URL lasts ten minutes. It carries the owner it was made for, signed with the client secret,
+  so nobody else's URL can add a workspace for that owner. A new workspace gets the channel's
+  `:approvers`.
   """
 
   alias Wardrik.Channel.Installation
@@ -34,7 +44,15 @@ defmodule WardrikSlack.Install do
   @spec scopes() :: [String.t()]
   def scopes, do: @scopes
 
-  @doc "Returns where to send someone adding the app for `owner`. Takes `:return_to`."
+  @doc """
+  Returns the Slack URL where someone adds the app for `owner`.
+
+  Returns `{:error, message}` if the channel has no `:client_id` and `:client_secret`.
+
+  ## Options
+
+    * `:return_to` - where to send them once it's added. Returned by `installed/3`.
+  """
   @spec url(Channel.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
   def url(channel, owner, opts \\ []) do
     with {:ok, id, secret} <- client(channel) do
@@ -59,8 +77,10 @@ defmodule WardrikSlack.Install do
   end
 
   @doc """
-  Adds the app to the workspace Slack sent someone back from, for `owner`, given the query Slack
-  sent. Returns the installation and where to send them, or why it couldn't.
+  Adds the app to a workspace for `owner`, from the `query` Slack redirects back with.
+
+  Returns the installation and the `:return_to` given to `url/3`. Returns `{:error, message}` if
+  the URL was made for another owner, has expired, or Slack refused.
   """
   @spec installed(Channel.t(), String.t(), map()) ::
           {:ok, Installation.t(), String.t() | nil} | {:error, String.t()}

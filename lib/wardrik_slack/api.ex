@@ -1,8 +1,10 @@
 defmodule WardrikSlack.API do
   @moduledoc """
-  Calls Slack's Web API with a token. Each call takes the channel's `:req_options`, merged into
-  the request, so tests can point it at `Req.Test`. A call Slack limits, answers with a 5xx, or
-  drops is tried again up to five times, waiting longer each time, or as long as Slack says.
+  Calls Slack's Web API.
+
+  Each call merges in the channel's `:req_options`, so tests can point it at `Req.Test`.
+  Rate-limited, 5xx and dropped requests are retried up to five times, with backoff or as long as
+  Slack says to wait.
   """
 
   require Logger
@@ -10,19 +12,19 @@ defmodule WardrikSlack.API do
   @api "https://slack.com/api/"
   @retried [retry: :transient, max_retries: 5]
 
-  @doc "Calls `method` with `body` as JSON, and returns Slack's reply."
+  @doc "Calls `method` with `body` as JSON. Returns Slack's reply, or its `error`."
   @spec post(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def post(method, token, body, req_options \\ []),
     do: call(method, [json: body, auth: {:bearer, token}] ++ req_options)
 
-  @doc "Calls `method` with `params` as a form, as Slack's methods that only read take them."
+  @doc "Calls `method` with `params` as a form, as Slack's read methods expect. Drops `nil` params."
   @spec read(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def read(method, token, params, req_options \\ []) do
     form = for {key, value} <- params, value != nil, do: {key, value}
     call(method, [form: form, auth: {:bearer, token}] ++ req_options)
   end
 
-  @doc "Calls `method` with `body` as JSON, as the bot of `workspace`."
+  @doc "Like `post/4`, with the bot token and `:req_options` of `workspace`."
   @spec post_in(WardrikChannel.Workspace.t(), String.t(), map()) ::
           {:ok, map()} | {:error, term()}
   def post_in(
@@ -32,7 +34,7 @@ defmodule WardrikSlack.API do
       ),
       do: post(method, installation.token, body, req_options(channel))
 
-  @doc "Calls `method` with `params` as a form, as the bot of `workspace`."
+  @doc "Like `read/4`, with the bot token and `:req_options` of `workspace`."
   @spec read_in(WardrikChannel.Workspace.t(), String.t(), map()) ::
           {:ok, map()} | {:error, term()}
   def read_in(
@@ -42,12 +44,17 @@ defmodule WardrikSlack.API do
       ),
       do: read(method, installation.token, params, req_options(channel))
 
-  @doc "Returns the channel's `:req_options`, merged into every request it makes."
+  @doc "Returns the channel's `:req_options`. `[]` unless set."
   @spec req_options(WardrikChannel.Channel.t()) :: keyword()
   def req_options(%WardrikChannel.Channel{options: options}),
     do: Keyword.get(options, :req_options, [])
 
-  @doc "Calls `method` with `options` as Req takes them, and returns Slack's reply."
+  @doc """
+  Calls `method` with `Req` options.
+
+  Returns `{:ok, reply}` when Slack answers `"ok": true`, `{:error, error}` with Slack's `error`,
+  `{:error, {:status, status}}` for any other status, or Req's error.
+  """
   @spec call(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def call(method, options) do
     case Req.post(@api <> method, @retried ++ options) do
@@ -59,8 +66,10 @@ defmodule WardrikSlack.API do
   end
 
   @doc """
-  Answers a button press at its `response_url` with `reply`, which replaces the message or is seen
-  by the person who pressed alone. A failure is logged, since the press was acted on either way.
+  Posts `reply` to a button press's `response_url`.
+
+  The reply replaces the message, or is shown only to the person who pressed. Always returns `:ok`.
+  A failure is logged, since the press was already acted on.
   """
   @spec respond(String.t() | nil, map(), keyword()) :: :ok
   def respond(nil, _reply, _req_options), do: :ok

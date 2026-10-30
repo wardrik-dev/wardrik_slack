@@ -1,12 +1,14 @@
 defmodule WardrikSlack.Waiting do
   @moduledoc """
-  Lays out the calls an agent waits on as one Slack message. Each call shows its tool, the
-  policy's question and its arguments, with a box for a note and Approve and Deny buttons. A call
-  waiting on a sign-in has Show link in place of Approve, which tells whoever presses it alone
-  where to sign in.
+  Lays out the calls an agent waits on as one Slack message.
 
-  Each button carries the conversation, the call and who asked, which `WardrikSlack.Answers` reads
-  back. Slack hands a button back as the bot posted it, and nobody else can change a bot's message.
+    * Each call shows its tool, the policy's question and its arguments, with a note box and
+      Approve and Deny buttons.
+    * A call waiting on a sign-in has Show link instead. It shows only the person who pressed it
+      where to sign in.
+
+  Each button's value holds the conversation, the call and who asked, for `WardrikSlack.Answers`.
+  This is safe because only the bot can change its own messages.
   """
 
   alias WardrikChannel.Waiting
@@ -22,19 +24,24 @@ defmodule WardrikSlack.Waiting do
     %{text: text, blocks: [Blocks.section(text) | calls_blocks(calls)]}
   end
 
-  @doc "Returns the blocks that show `calls`, each with its question and buttons."
+  @doc "Returns the blocks for `calls`, each with its question and buttons."
   @spec calls_blocks([Waiting.t()]) :: [map()]
   def calls_blocks(calls), do: Enum.flat_map(calls, &blocks/1)
 
-  @doc "Returns what `calls` ask for, as `approve `echo` and sign in for `mail``."
+  @doc """
+  Returns what `calls` ask for, in words.
+
+      WardrikSlack.Waiting.asked(calls)
+      #=> "approve `echo` and sign in for `mail`"
+  """
   @spec asked([Waiting.t()]) :: String.t()
   def asked(calls), do: Enum.map_join(calls, " and ", &ask/1)
 
-  @doc "Returns the id of the box a note on the call `id` is written in."
+  @doc "Returns the block ID of the note box for the call `id`."
   @spec note_block(String.t()) :: String.t()
   def note_block(id), do: @note <> id
 
-  @doc "Returns the id of the buttons of the call `id`."
+  @doc "Returns the block ID of the buttons for the call `id`."
   @spec buttons_block(String.t()) :: String.t()
   def buttons_block(id), do: "wardrik:" <> id
 
@@ -42,7 +49,12 @@ defmodule WardrikSlack.Waiting do
   defp who([]), do: "Waiting on whoever asked to"
   defp who(approvers), do: "Waiting on #{named(approvers)} to"
 
-  @doc "Returns `approvers` as a sentence names them, as `@maria or @jon`."
+  @doc """
+  Returns `approvers` joined for a sentence. Member IDs become mentions.
+
+      WardrikSlack.Waiting.named(["@maria", "@jon", "U024BE7LH"])
+      #=> "@maria, @jon or <@U024BE7LH>"
+  """
   @spec named([String.t()]) :: String.t()
   def named([only]), do: mention(only)
 

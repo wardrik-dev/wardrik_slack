@@ -1,11 +1,15 @@
 defmodule WardrikSlack.Rooms do
   @moduledoc """
-  Has an agent answer in a Slack channel as `WardrikChannel.Rooms` sets out, and says so there.
+  Binds agents to Slack channels, as `WardrikChannel.Rooms` sets out, and shows the binding there.
 
-  Invited into a Slack channel, the bot says where things stand. With one agent offered, it
-  answers there now, and a button has it answer every message, or only mentions again. A menu
-  switches agents or stops it answering. With several offered, each has a button to use it. With
-  none, the bot says how one comes to be offered. Taking the bot out unbinds the room.
+  When the bot is invited into a Slack channel, it posts where things stand:
+
+    * One agent offered - the agent answers there from now on. A button switches between every
+      message and mentions only. A menu switches agents or stops it.
+    * Several offered - a button for each.
+    * None offered - how to offer one.
+
+  Removing the bot unbinds the room.
   """
 
   alias WardrikChannel.Binding
@@ -17,7 +21,7 @@ defmodule WardrikSlack.Rooms do
 
   @max_buttons 5
 
-  @doc "Acts on the bot `bot` invited into a Slack channel, or taken out of one."
+  @doc "Handles `bot`, the app's member ID, joining or leaving a Slack channel."
   @spec event(Workspace.t(), map(), String.t()) :: :ok | :ignored | {:error, term()}
   def event(
         workspace,
@@ -38,7 +42,7 @@ defmodule WardrikSlack.Rooms do
 
   def event(_workspace, _event, _bot), do: :ignored
 
-  @doc "Answers a press of a room's button, or a choice from its menu, and shows where things stand."
+  @doc "Handles a room's button press or menu choice, then posts where things stand."
   @spec answer(Workspace.t(), map()) :: :ok | :ignored
   def answer(
         workspace,
@@ -93,7 +97,7 @@ defmodule WardrikSlack.Rooms do
   defp value(%{"selected_option" => %{"value" => value}}), do: value
   defp value(_pressed), do: nil
 
-  @doc "Returns the message that shows where a room stands."
+  @doc "Returns the message that shows a room's binding."
   @spec message(WardrikChannel.Rooms.shown() | :stopped, Workspace.t(), String.t() | nil) ::
           %{text: String.t(), blocks: [map()]}
   def message({:bound, %Binding{agent: agent, answers: answers}, offer}, workspace, bot) do
@@ -195,7 +199,7 @@ defmodule WardrikSlack.Rooms do
     }
   end
 
-  @doc "Returns `agent` as the workspace reads it: without its owner, as `triage`."
+  @doc "Returns `agent` without the workspace owner's prefix, as `triage` for `acme/triage`."
   @spec shown(Workspace.t(), String.t()) :: String.t()
   def shown(%Workspace{installation: installation}, agent),
     do: String.replace_prefix(agent, installation.owner <> "/", "")

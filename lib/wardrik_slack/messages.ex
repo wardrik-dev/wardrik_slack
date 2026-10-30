@@ -1,11 +1,12 @@
 defmodule WardrikSlack.Messages do
   @moduledoc """
-  Hands a message posted in a Slack channel to `WardrikChannel.received/2`, and marks it. A
-  message the agent is asked gets :eyes:, which turns to :white_check_mark: once the agent
-  answers. One it couldn't be asked gets a reply in its thread saying why.
+  Passes messages posted in Slack channels to `WardrikChannel.received/2`, and reacts to them.
 
-  It leaves alone edits, deletions, bots' messages and the app's own, direct messages, and
-  messages from people in another workspace.
+    * A message the agent takes gets :eyes:, then :white_check_mark: once it's answered.
+    * A message the agent couldn't take gets a reply in its thread saying why.
+
+  Ignores edits, deletions, messages from bots (the app included), direct messages, and messages
+  from people in another workspace.
   """
 
   alias WardrikChannel.Inbound
@@ -15,7 +16,11 @@ defmodule WardrikSlack.Messages do
 
   @posted [nil, "thread_broadcast", "file_share"]
 
-  @doc "Asks the room's agent what a `message` event says, as the bot `bot` hears it, or leaves it."
+  @doc """
+  Passes a `message` event to the room's agent. `bot` is the app's own member ID.
+
+  Returns `{:asked, conversation}`, `:ignored`, or `{:error, message}` after replying with it.
+  """
   @spec event(Workspace.t(), map(), String.t()) ::
           {:asked, String.t()} | :ignored | {:error, String.t()}
   def event(workspace, %{"type" => "message", "user" => user} = event, bot)
@@ -62,7 +67,7 @@ defmodule WardrikSlack.Messages do
   defp thread(ts, ts), do: nil
   defp thread(thread, _ts), do: thread
 
-  @doc "Marks the messages `ids` an answer answers with :white_check_mark: in place of :eyes:."
+  @doc "Swaps :eyes: for :white_check_mark: on the answered messages `ids`."
   @spec answered(Workspace.t(), String.t(), [String.t()]) :: :ok
   def answered(workspace, room, ids) do
     for ts <- ids do
@@ -73,14 +78,14 @@ defmodule WardrikSlack.Messages do
     :ok
   end
 
-  @doc "Takes :eyes: from the messages `ids` a run stopped before it answered."
+  @doc "Removes :eyes: from the messages `ids`, when a run stops before answering."
   @spec stopped(Workspace.t(), String.t(), [String.t()]) :: :ok
   def stopped(workspace, room, ids) do
     for ts <- ids, do: react(workspace, "reactions.remove", room, ts, "eyes")
     :ok
   end
 
-  @doc "Returns who `user` is, with the name Slack shows for them."
+  @doc "Returns the member `user`, with the name Slack shows for them."
   @spec sender(Workspace.t(), String.t()) :: Member.t()
   def sender(workspace, user) do
     case API.read_in(workspace, "users.info", %{user: user}) do

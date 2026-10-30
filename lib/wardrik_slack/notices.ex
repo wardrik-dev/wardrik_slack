@@ -1,15 +1,20 @@
 defmodule WardrikSlack.Notices do
   @moduledoc """
-  Lays out a notice as one Slack message in a room. A parked turn's calls show as a thread's do,
-  with Approve and Deny, naming the approvers it asks; a failed turn says why; a finished turn
-  shows what it answered, under the agent's name. The agent is named as the workspace shows it,
-  without its owner, whose workspace it is.
+  Lays out a `Wardrik.Notice` as one Slack message.
+
+  | Notice      | Message                                                        |
+  | ----------- | -------------------------------------------------------------- |
+  | `:parked`   | the waiting calls, with Approve and Deny, naming the approvers |
+  | `:failed`   | why it failed                                                  |
+  | `:finished` | the answer, under the agent's name                             |
+
+  The agent is named without its owner, as `triage`. See `WardrikSlack.Rooms.shown/2`.
   """
 
   alias WardrikChannel.Waiting
   alias WardrikSlack.Blocks
 
-  @doc "Returns the message that tells of `notice`, asking `approvers`, naming its agent `agent`."
+  @doc "Returns the message for `notice`. `agent` is the name to show; `approvers` are asked about a parked turn."
   @spec message(Wardrik.Notice.t(), [String.t()], String.t()) ::
           %{text: String.t(), blocks: [map()]}
   def message(%Wardrik.Notice{kind: :parked} = notice, approvers, agent) do

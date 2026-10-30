@@ -1,9 +1,16 @@
 defmodule WardrikSlack.Dispatch do
   @moduledoc """
-  Hands what Slack sends, over Socket Mode or HTTP alike, to what acts on it, in the workspace it
-  came from. A message goes to `WardrikSlack.Messages`, the bot joining or leaving a Slack channel
-  to `WardrikSlack.Rooms`, and a button to `WardrikSlack.Rooms` or `WardrikSlack.Answers`. The app
-  taken out of a workspace forgets its installation there.
+  Routes what Slack sends, over Socket Mode or HTTP, within the workspace it came from.
+
+  | Slack sends                              | Handled by               |
+  | ---------------------------------------- | ------------------------ |
+  | a message                                | `WardrikSlack.Messages`  |
+  | the bot joining or leaving a channel     | `WardrikSlack.Rooms`     |
+  | a room's button or menu                  | `WardrikSlack.Rooms`     |
+  | a waiting call's button                  | `WardrikSlack.Answers`   |
+  | `app_uninstalled` or `tokens_revoked`    | forgets the workspace    |
+
+  Anything from a workspace the channel isn't added to is logged and ignored.
   """
 
   require Logger
@@ -13,7 +20,7 @@ defmodule WardrikSlack.Dispatch do
   alias WardrikSlack.Messages
   alias WardrikSlack.Rooms
 
-  @doc "Acts on an event callback, as Slack sends one."
+  @doc "Handles an `event_callback`."
   @spec event(Channel.t(), map()) :: term()
   def event(channel, %{"team_id" => team, "event" => %{"type" => type}})
       when type in ["app_uninstalled", "tokens_revoked"] do
@@ -27,7 +34,7 @@ defmodule WardrikSlack.Dispatch do
 
   def event(_channel, _callback), do: :ignored
 
-  @doc "Acts on a button press, or a choice from a menu, as Slack sends one."
+  @doc "Handles a button press or a menu choice."
   @spec interactive(Channel.t(), map()) :: term()
   def interactive(
         channel,

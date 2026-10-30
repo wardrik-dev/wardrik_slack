@@ -1,12 +1,18 @@
 defmodule WardrikSlack.HTTP do
   @moduledoc """
-  Answers what Slack sends over HTTP: its events at `events`, the Request URL under **Event
-  Subscriptions**, and its buttons at `actions`, the one under **Interactivity**.
+  Takes what Slack sends over HTTP.
 
-  Each request must be signed with the channel's `signing_secret`, within five minutes. Slack's
-  check of a Request URL is answered with what it asked. The rest is acted on in a task, and Slack
-  is answered once it's done, or after two seconds, whichever comes first. Slack sends again what
-  it isn't answered within three, and a message sent again is asked once.
+  | Path      | Slack setting                        |
+  | --------- | ------------------------------------ |
+  | `events`  | **Event Subscriptions** Request URL  |
+  | `actions` | **Interactivity** Request URL        |
+
+  Each request must be signed with the channel's `:signing_secret` and be under five minutes
+  old. Otherwise it gets `401`. Without `:signing_secret`, every request gets `404`.
+
+  Slack's `url_verification` check is answered with its challenge. Everything else is handled in
+  a task. Slack gets `200` once the task is done, or after two seconds, whichever comes first.
+  Slack resends what isn't answered within three seconds. A resent message is asked only once.
   """
 
   alias WardrikChannel.Channel
@@ -15,7 +21,7 @@ defmodule WardrikSlack.HTTP do
   @window 300
   @wait 2_000
 
-  @doc "Answers `request`, which Slack sent the channel."
+  @doc "Answers a `request` Slack sent the channel."
   @spec request(Channel.t(), Wardrik.Channel.request()) :: Wardrik.Channel.response()
   def request(%Channel{options: options} = channel, request) do
     case Keyword.fetch(options, :signing_secret) do
@@ -71,7 +77,7 @@ defmodule WardrikSlack.HTTP do
     end
   end
 
-  @doc "Returns the signature Slack sends with `body`, signed with `secret` at `at`."
+  @doc "Returns the `x-slack-signature` Slack sends with `body`, signed with `secret` at Unix time `at`."
   @spec signature(String.t(), integer(), String.t()) :: String.t()
   def signature(secret, at, body),
     do:

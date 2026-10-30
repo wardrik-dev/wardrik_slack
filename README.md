@@ -1,7 +1,6 @@
 # WardrikSlack
 
-Wardrik in Slack: agents answer in threads, and ask there, with Approve and Deny, before a call
-they can't make alone.
+Slack for Wardrik. Agents answer in threads, and ask there before a call they can't make alone.
 
 > **maria:** @Wardrik what time is it on the server? :eyes:
 > ↳ **Wardrik:** Waiting on @maria to approve `clock`.
@@ -12,12 +11,12 @@ they can't make alone.
 ## Make the Slack app
 
 At [api.slack.com/apps](https://api.slack.com/apps), choose **Create New App**, then **From a
-manifest**, pick your workspace, and paste one of these. Change `Wardrik` to the name your team
-will see.
+manifest**. Pick your workspace and paste one of the manifests below. Change `Wardrik` to the
+name your team will see.
 
 ### For testing, over Socket Mode
 
-Socket Mode needs no public address: your app opens a connection out to Slack.
+Socket Mode needs no public address. Your app opens the connection to Slack.
 
 ```yaml
 display_information:
@@ -62,18 +61,18 @@ settings:
 
 Then:
 
-1. **Install to Workspace**, and copy the **Bot User OAuth Token** (`xoxb-...`) from **OAuth &
-   Permissions**. This is `token`.
-2. Under **Basic Information › App-Level Tokens**, make a token with the scope
-   `connections:write` (`xapp-...`). This is `app_token`.
+1. Choose **Install to Workspace**. Copy the **Bot User OAuth Token** (`xoxb-...`) from
+   **OAuth & Permissions**. This is `token`.
+2. Under **Basic Information › App-Level Tokens**, make a token with the `connections:write`
+   scope (`xapp-...`). This is `app_token`.
 
-Give Wardrik a Slack app of its own here. Slack spreads an app's Socket Mode events across every
-connection open for it.
+Give Wardrik a Slack app of its own for Socket Mode. Slack spreads an app's events across every
+open connection.
 
 ### For production, over HTTP
 
-Slack sends events to your app's public address. Change `agents.example.com` to it, and keep
-the rest of the manifest above, with these settings:
+Slack sends events to your app's public address. Use the manifest above, with these `settings`.
+Change `agents.example.com` to your address:
 
 ```yaml
 settings:
@@ -95,35 +94,40 @@ settings:
   token_rotation_enabled: false
 ```
 
-`slack` in each URL is the channel's name in your Wardrik. Slack checks the events URL as you save,
-so your app must be running at that address first. Copy the **Signing Secret** from **Basic
-Information › App Credentials**. This is `signing_secret`.
+`slack` in each URL is the channel's name in your Wardrik config. Slack checks the events URL
+when you save, so your app must already be running there.
+
+Copy the **Signing Secret** from **Basic Information › App Credentials**. This is
+`signing_secret`.
 
 ## Try it locally
 
-From this repository, with the tokens from Socket Mode above and a model key:
+From this repository, with the Socket Mode tokens and a model key:
 
 ```sh
 SLACK_BOT_TOKEN=xoxb-... SLACK_APP_TOKEN=xapp-... ANTHROPIC_API_KEY=sk-ant-... \
   mix run --no-halt examples/socket_mode.exs
 ```
 
-It starts a Wardrik in memory with the agent `acme/assistant`, which may read a clock once someone
-approves it. In Slack, `/invite @Wardrik` into a channel, then mention it:
-`@Wardrik what time is it?`. Set `SLACK_APPROVERS=@you` to name who approves, or leave it out, and
-whoever asked approves their own.
+This starts Wardrik in memory with the agent `acme/assistant`. The agent may read a clock once
+someone approves it.
+
+1. In Slack, `/invite @Wardrik` into a channel.
+2. Mention it: `@Wardrik what time is it?`
+
+Set `SLACK_APPROVERS=@you` to name the approvers. Without it, whoever asked approves.
 
 ## Wire it up
 
 ```elixir
 def deps do
   [
-    {:wardrik_slack, "~> 0.1"}
+    {:wardrik_slack, "~> 0.1.0-rc.1"}
   ]
 end
 ```
 
-Give your Wardrik the channel, by a name of your own:
+Add the channel to your Wardrik, under a name of your choice:
 
 ```elixir
 config :my_app, MyApp.Wardrik,
@@ -137,19 +141,21 @@ config :my_app, MyApp.Wardrik,
   ]
 ```
 
-Over HTTP, serve it with [WardrikHTTP](https://hexdocs.pm/wardrik_http). If your app parses
-bodies first, keep them as they came, since Slack signs the exact bytes:
+See `WardrikSlack` for every option.
+
+Over HTTP, serve it with `Wardrik.HTTP`. Slack signs the exact bytes it sends, so if your app
+parses bodies first, keep the raw body:
 
 ```elixir
 plug Plug.Parsers,
   parsers: [:json, :urlencoded],
   json_decoder: JSON,
-  body_reader: {WardrikHTTP.BodyReader, :read_body, []}
+  body_reader: Wardrik.HTTP.body_reader()
 
-forward "/", WardrikHTTP, wardrik: MyApp.Wardrik
+forward "/", Wardrik.HTTP, wardrik: MyApp.Wardrik
 ```
 
-Then list the channel in an agent's definition:
+List the channel in an agent's definition:
 
 ```elixir
 Wardrik.Agent.define(scope, "acme/triage",
@@ -159,27 +165,30 @@ Wardrik.Agent.define(scope, "acme/triage",
 )
 ```
 
-Invite the app into a Slack channel. With one agent offered, it answers there from then on: mention
-the app, and it answers in a thread under your message. With several, pick one. See
-[WardrikChannel](https://hexdocs.pm/wardrik_channel) for rooms, threads and approvals.
+Invite the app into a Slack channel. If one agent is offered, it answers there from then on:
+mention the app, and it replies in a thread under your message. If several are offered, pick
+one. See [WardrikChannel](https://hexdocs.pm/wardrik_channel) for rooms, threads and approvals.
 
 ## Approvers
 
-`approvers` are named by `@handle`, email address, or Slack member ID, or `:anyone`. An email
-address needs the `users:read.email` scope. Whoever asked for a turn may always decide it.
+Name `approvers` by `@handle`, email address or Slack member ID, or use `:anyone`. Email
+addresses need the `users:read.email` scope. Whoever asked for a turn may always decide it.
 
-A call an agent waits on is sent to each approver in the app's **Messages** tab, with a link to
-its thread, and the thread says who it waits on:
+When an agent waits on a call:
 
-> ↳ **Wardrik:** Waiting on @maria or @jon to approve `create_bill`.
+1. Each approver gets the call in the app's **Messages** tab, with a link to its thread.
+2. The thread says who it waits on:
 
-The first to answer decides. Where Slack can reach none of them, the call is asked in the thread
-instead, with the same buttons.
+   > ↳ **Wardrik:** Waiting on @maria or @jon to approve `create_bill`.
+
+3. The first to answer decides.
+
+If Slack can reach none of the approvers, the call is asked in the thread, with the same buttons.
 
 ## Notices
 
-An agent nobody watches, such as one a trigger asks every morning, can post in a room when it
-answers, fails, or waits on a person. Route it to the room as `slack:#room`:
+An agent nobody watches, such as one a trigger runs every morning, can post to a room when it
+finishes, fails or waits on someone. Route it to `slack:#room`:
 
 ```elixir
 Wardrik.Agent.define(scope, "acme/digest",
@@ -188,7 +197,7 @@ Wardrik.Agent.define(scope, "acme/digest",
 )
 ```
 
-To ask approvers about a parked turn, name a target in your Wardrik's `notify`, and route to it:
+To ask approvers about a parked turn, add a target to your Wardrik's `notify`, and route to it:
 
 ```elixir
 config :my_app, MyApp.Wardrik,
@@ -197,15 +206,29 @@ config :my_app, MyApp.Wardrik,
 Wardrik.Agent.define(scope, "acme/triage", model: "anthropic:claude-haiku-4-5", notify: "ops")
 ```
 
-The notice is posted in the room, with Approve and Deny, and sent to each approver in the
-**Messages** tab with a link to it. Only the channel's own approvers may decide. The app posts in
-any public channel, since the manifest asks for `chat:write.public`; invite it into a private one.
-It never answers its own posts, so a room where the agent answers every message doesn't loop.
-See `Wardrik.Notify` for webhooks and the rest.
+The notice is posted in the room with Approve and Deny. Each approver also gets it in the
+**Messages** tab, with a link. Only the channel's own approvers may decide.
+
+* The app posts in any public channel, since the manifest asks for `chat:write.public`. Invite
+  it into private ones.
+* It never answers its own posts, so a room where the agent answers every message doesn't loop.
+
+See `Wardrik.Notify` for webhooks and other targets.
 
 ## Many workspaces
 
-One app can serve many workspaces, one for each org. Give the channel `client_id` and
-`client_secret` from **Basic Information**, `installations: :stored`, and the `redirect_uri` you
-set under **OAuth & Permissions**, and see `WardrikSlack.Install`. Each workspace's token is sealed
-in the Wardrik's vault, so it needs `:keys`.
+One app can serve many workspaces, one for each org:
+
+```elixir
+slack:
+  {WardrikSlack,
+   client_id: System.fetch_env!("SLACK_CLIENT_ID"),
+   client_secret: System.fetch_env!("SLACK_CLIENT_SECRET"),
+   redirect_uri: "https://agents.example.com/slack/installed",
+   signing_secret: System.fetch_env!("SLACK_SIGNING_SECRET"),
+   installations: :stored}
+```
+
+`client_id` and `client_secret` are under **Basic Information**. Set `redirect_uri` under
+**OAuth & Permissions**. Each workspace's token is sealed in Wardrik's vault, so Wardrik needs
+`:keys`. See `WardrikSlack.Install`.

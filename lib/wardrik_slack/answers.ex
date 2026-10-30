@@ -1,8 +1,10 @@
 defmodule WardrikSlack.Answers do
   @moduledoc """
-  Answers a press of the buttons `WardrikSlack.Waiting` posted. Approve and Deny decide the call
-  with `WardrikChannel.decide/4`, passing the note written above them, and the buttons give way to
-  who decided. Show link tells whoever pressed it alone where to sign in.
+  Handles presses of the buttons `WardrikSlack.Waiting` posts.
+
+    * Approve and Deny decide the call with `WardrikChannel.decide/4`, with the note typed above
+      them. The buttons are replaced by who decided.
+    * Show link replies, to the person who pressed it only, with where to sign in.
   """
 
   alias Wardrik.Error
@@ -12,7 +14,7 @@ defmodule WardrikSlack.Answers do
   alias WardrikSlack.Blocks
   alias WardrikSlack.Waiting
 
-  @doc "Answers a `block_actions` payload of one of the waiting buttons."
+  @doc "Handles a `block_actions` payload from a waiting call's buttons. Returns `:ignored` for any other."
   @spec answer(Workspace.t(), map()) :: :ok | :ignored
   def answer(
         workspace,

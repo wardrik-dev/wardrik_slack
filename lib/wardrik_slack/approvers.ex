@@ -1,22 +1,32 @@
 defmodule WardrikSlack.Approvers do
   @moduledoc """
-  Finds a workspace's approvers as Slack knows them, to message each directly. A member ID is
-  taken as it is. An email address is looked up with `users.lookupByEmail`, which needs the
-  `users:read.email` scope, and a `@handle` among the workspace's members with `users.list`, which
-  needs `users:read`. Each is looked up as a call waits, and nothing is kept.
+  Finds approvers' Slack member IDs, to message each directly.
+
+  | Approver      | Looked up with          | Scope              |
+  | ------------- | ----------------------- | ------------------ |
+  | `U024BE7LH`   | used as is              |                    |
+  | `maria@...`   | `users.lookupByEmail`   | `users:read.email` |
+  | `@maria`      | `users.list`            | `users:read`       |
+
+  Deleted members are skipped. Approvers are looked up each time a call waits. Nothing is cached.
   """
 
   alias WardrikChannel.Workspace
   alias WardrikSlack.API
 
-  @doc "Returns each of `approvers` with the member ID it names, or `:error` where Slack found none."
+  @doc """
+  Returns each approver with its member ID, or `:error` if Slack has none.
+
+      WardrikSlack.Approvers.members(workspace, ["@maria", "nobody@example.com"])
+      #=> [{"@maria", {:ok, "U024BE7LH"}}, {"nobody@example.com", :error}]
+  """
   @spec members(Workspace.t(), [String.t()]) :: [{String.t(), {:ok, String.t()} | :error}]
   def members(workspace, approvers) do
     handles = handles(workspace, approvers)
     for approver <- approvers, do: {approver, member(workspace, approver, handles)}
   end
 
-  @doc "Returns whether `approver` is a Slack member ID, as `U024BE7LH`."
+  @doc "Returns whether `approver` is a Slack member ID, such as `U024BE7LH`."
   @spec id?(String.t()) :: boolean()
   def id?(approver), do: Regex.match?(~r/\A[UW][A-Z0-9]+\z/, approver)
 
