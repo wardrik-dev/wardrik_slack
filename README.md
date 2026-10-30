@@ -130,7 +130,7 @@ end
 Add the channel to your Wardrik, under a name of your choice:
 
 ```elixir
-config :my_app, MyApp.Wardrik,
+config :my_app, MyApp.AgentRuntime,
   channels: [
     slack:
       {WardrikSlack,
@@ -152,7 +152,7 @@ plug Plug.Parsers,
   json_decoder: JSON,
   body_reader: Wardrik.HTTP.body_reader()
 
-forward "/", Wardrik.HTTP, wardrik: MyApp.Wardrik
+forward "/", Wardrik.HTTP, wardrik: MyApp.AgentRuntime
 ```
 
 List the channel in an agent's definition:
@@ -200,7 +200,7 @@ Wardrik.Agent.define(scope, "acme/digest",
 To ask approvers about a parked turn, add a target to your Wardrik's `notify`, and route to it:
 
 ```elixir
-config :my_app, MyApp.Wardrik,
+config :my_app, MyApp.AgentRuntime,
   notify: [targets: [ops: {Wardrik.Notify.Room, channel: "slack", room: "#ops", approvers: ["@maria"]}]]
 
 Wardrik.Agent.define(scope, "acme/triage", model: "anthropic:claude-haiku-4-5", notify: "ops")

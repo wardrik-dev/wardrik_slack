@@ -5,7 +5,7 @@ defmodule WardrikSlack do
   Agents answer in threads. Before a call they can't make alone, they ask there, with Approve and
   Deny buttons.
 
-      config :my_app, MyApp.Wardrik,
+      config :my_app, MyApp.AgentRuntime,
         channels: [
           slack:
             {WardrikSlack,
