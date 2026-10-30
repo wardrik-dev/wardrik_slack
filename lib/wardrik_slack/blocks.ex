@@ -19,7 +19,7 @@ defmodule WardrikSlack.Blocks do
   @spec actions(String.t(), [map()]) :: map()
   def actions(block_id, elements), do: %{type: "actions", block_id: block_id, elements: elements}
 
-  @doc "Returns a button that sends `value` under `action_id`. `style` is `\"primary\"`, `\"danger\"` or `nil`."
+  @doc ~S|Returns a button that sends `value` under `action_id`. `style` is `"primary"`, `"danger"` or `nil`.|
   @spec button(String.t(), String.t(), String.t(), String.t() | nil) :: map()
   def button(label, action_id, value, style \\ nil) do
     button = %{type: "button", text: plain(label), action_id: action_id, value: value}
