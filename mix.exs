@@ -4,7 +4,7 @@ defmodule WardrikSlack.MixProject do
   def project do
     [
       app: :wardrik_slack,
-      version: "0.1.0",
+      version: "0.1.0-rc.1",
       elixir: "~> 1.20",
       description:
         "Wardrik in Slack: agents answer in threads, and ask there, with Approve and Deny, before a call they can't make alone.",
