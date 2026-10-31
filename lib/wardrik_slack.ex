@@ -1,4 +1,36 @@
 defmodule WardrikSlack do
+  @schema NimbleOptions.new!(
+            signing_secret: [
+              type: {:or, [:string, nil]},
+              doc: """
+              Takes Slack's requests over HTTP, at `/v1/channels/{channel}/events` and
+              `/v1/channels/{channel}/actions`. See `WardrikSlack.HTTP`.
+              """
+            ],
+            app_token: [
+              type: {:or, [:string, nil]},
+              doc: """
+              An app-level token, `xapp-...`, with `connections:write`. Takes Slack's requests over
+              Socket Mode instead, with no public address. For testing. See `WardrikSlack.Socket`.
+              """
+            ],
+            client_id: [
+              type: {:or, [:string, nil]},
+              doc:
+                "Adds one app to many workspaces, with `:client_secret`. See `WardrikSlack.Install`."
+            ],
+            client_secret: [type: {:or, [:string, nil]}, doc: "The app's client secret."],
+            redirect_uri: [
+              type: :string,
+              doc: "Where Slack sends someone once they've added the app."
+            ],
+            req_options: [
+              type: :keyword_list,
+              default: [],
+              doc: "Merged into every request to Slack."
+            ]
+          )
+
   @moduledoc """
   Slack for Wardrik. A `WardrikChannel` adapter for a Slack app of your own.
 
@@ -17,17 +49,10 @@ defmodule WardrikSlack do
 
   ## Options
 
-  Takes `WardrikChannel`'s options, such as `:owner` and `:approvers`, and these:
+  Takes `WardrikChannel`'s options, such as `:owner` and `:approvers`. Its `:token` is the bot
+  token, `xoxb-...`. And these:
 
-    * `:token` - the bot token, `xoxb-...`. Adds the app to the one workspace it belongs to.
-    * `:signing_secret` - takes Slack's requests over HTTP, at `/v1/channels/{channel}/events`
-      and `/v1/channels/{channel}/actions`. See `WardrikSlack.HTTP`.
-    * `:app_token` - an app-level token, `xapp-...`, with `connections:write`. Takes Slack's
-      requests over Socket Mode instead, with no public address. For testing. See
-      `WardrikSlack.Socket`.
-    * `:client_id`, `:client_secret`, `:redirect_uri` - add one app to many workspaces. See
-      `WardrikSlack.Install`.
-    * `:req_options` - merged into every request to Slack.
+  #{NimbleOptions.docs(@schema)}
 
   Over Socket Mode, give Wardrik a Slack app of its own. Slack spreads an app's events across
   every open connection.
@@ -66,6 +91,8 @@ defmodule WardrikSlack do
 
   @impl WardrikChannel
   def children(%Channel{options: options} = channel) do
+    NimbleOptions.validate!(options, @schema)
+
     socket =
       if Keyword.has_key?(options, :app_token), do: [{WardrikSlack.Socket, channel}], else: []
 

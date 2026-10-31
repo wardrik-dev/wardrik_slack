@@ -60,6 +60,7 @@ defmodule WardrikSlack.MixProject do
   defp deps do
     [
       sibling(:wardrik_channel),
+      {:nimble_options, "~> 1.1"},
       {:req, "~> 0.7"},
       {:websockex, "~> 0.5.1"},
       sibling(:wardrik_testing, only: :test),
