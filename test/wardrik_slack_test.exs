@@ -22,6 +22,12 @@ defmodule WardrikSlackTest do
     }
   end
 
+  test "refuses an option it doesn't take, so a typo doesn't go unnoticed", %{channel: channel} do
+    assert_raise NimbleOptions.ValidationError, ~r/unknown options \[:signin_secret\]/, fn ->
+      WardrikSlack.children(%{channel | options: [signin_secret: "s3cret"]})
+    end
+  end
+
   test "checks the tokens it's given", context do
     req_options = [req_options: context.channel.options[:req_options]]
 
