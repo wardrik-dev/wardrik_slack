@@ -85,6 +85,10 @@ defmodule WardrikSlack do
   alias WardrikSlack.Messages
   alias WardrikSlack.Rooms
 
+  @doc "Returns the options it takes beyond `WardrikChannel`'s, as a `NimbleOptions` schema."
+  @spec schema() :: NimbleOptions.t()
+  def schema, do: @schema
+
   @impl Wardrik.Channel
   def request(opts, request),
     do: __MODULE__ |> WardrikChannel.channel(opts) |> WardrikSlack.HTTP.request(request)
