@@ -28,6 +28,11 @@ defmodule WardrikSlackTest do
     end
   end
 
+  test "gives the options it takes beyond WardrikChannel's" do
+    assert {:ok, [req_options: [], app_token: "xapp-1"]} =
+             NimbleOptions.validate([app_token: "xapp-1"], WardrikSlack.schema())
+  end
+
   test "checks the tokens it's given", context do
     req_options = [req_options: context.channel.options[:req_options]]
 
