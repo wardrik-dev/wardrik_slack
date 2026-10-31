@@ -122,7 +122,7 @@ Set `SLACK_APPROVERS=@you` to name the approvers. Without it, whoever asked appr
 ```elixir
 def deps do
   [
-    {:wardrik_slack, "~> 0.1.0-rc.1"}
+    {:wardrik_slack, "~> 0.1.0-rc.2"}
   ]
 end
 ```
