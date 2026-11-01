@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-rc.2 (2026-10-31)
 
-- `WardrikSlack.schema/0` returns the options it takes beyond `WardrikChannel`'s.
+- `WardrikSlack.schema/0`: the options it takes beyond `WardrikChannel`'s, checked as the channel
+  starts and documented from the schema.
 
 ## 0.1.0-rc.1 (2026-10-30)
 

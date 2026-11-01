@@ -4,7 +4,7 @@ defmodule WardrikSlack.MixProject do
   def project do
     [
       app: :wardrik_slack,
-      version: "0.1.0-rc.1",
+      version: "0.1.0-rc.2",
       elixir: "~> 1.20",
       description:
         "Wardrik in Slack: agents answer in threads, and ask there, with Approve and Deny, before a call they can't make alone.",
@@ -59,11 +59,11 @@ defmodule WardrikSlack.MixProject do
 
   defp deps do
     [
-      sibling(:wardrik_channel),
+      sibling(:wardrik_channel, "~> 0.1.0-rc.2"),
       {:nimble_options, "~> 1.1"},
       {:req, "~> 0.7"},
       {:websockex, "~> 0.5.1"},
-      sibling(:wardrik_testing, only: :test),
+      sibling(:wardrik_testing, "~> 0.1.0-rc.1", only: :test),
       {:plug, "~> 1.16", only: :test},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -77,9 +77,9 @@ defmodule WardrikSlack.MixProject do
 
   # Wardrik's own packages come from Hex, or from their checkouts beside this one with
   # WARDRIK_LOCAL=1.
-  defp sibling(name, opts \\ []) do
+  defp sibling(name, requirement, opts \\ []) do
     if System.get_env("WARDRIK_LOCAL"),
       do: {name, Keyword.put(opts, :path, "../#{name}")},
-      else: {name, "~> 0.1.0-rc.1", opts}
+      else: {name, requirement, opts}
   end
 end
