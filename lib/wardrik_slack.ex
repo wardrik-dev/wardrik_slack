@@ -77,6 +77,8 @@ defmodule WardrikSlack do
   require Logger
 
   alias WardrikChannel.Channel
+  alias WardrikChannel.Install
+  alias WardrikChannel.Membership
   alias WardrikChannel.Outbound
   alias WardrikChannel.Workspace
   alias WardrikSlack.API
@@ -90,7 +92,7 @@ defmodule WardrikSlack do
   def schema, do: @schema
 
   @impl Wardrik.Channel
-  def request(opts, request),
+  def request(request, opts),
     do: __MODULE__ |> WardrikChannel.channel(opts) |> WardrikSlack.HTTP.request(request)
 
   @impl WardrikChannel
@@ -149,7 +151,7 @@ defmodule WardrikSlack do
 
   @doc "Returns whether `member` is among `names`. Each name is a `@handle`, email address or member ID."
   @impl WardrikChannel
-  def include?(channel, installation, names, member) do
+  def include?(%Membership{installation: installation, names: names, member: member}, channel) do
     member.id in names or
       Enum.any?(
         names,
@@ -159,11 +161,13 @@ defmodule WardrikSlack do
 
   @doc "Returns the URL where someone acting for `owner` adds the app. See `WardrikSlack.Install.url/3`."
   @impl WardrikChannel
-  def install_url(channel, owner, opts), do: WardrikSlack.Install.url(channel, owner, opts)
+  def install_url(%Install{owner: owner, return_to: return_to}, channel),
+    do: WardrikSlack.Install.url(channel, owner, return_to: return_to)
 
   @doc "Adds the app to a workspace once Slack sends someone back. See `WardrikSlack.Install.installed/3`."
   @impl WardrikChannel
-  def installed(channel, owner, query), do: WardrikSlack.Install.installed(channel, owner, query)
+  def installed(%Install{owner: owner, query: query}, channel),
+    do: WardrikSlack.Install.installed(channel, owner, query)
 
   @doc """
   Uninstalls the app from `workspace` and forgets the workspace.
@@ -171,7 +175,7 @@ defmodule WardrikSlack do
   The workspace is forgotten even if Slack refuses. Slack confirms with an `app_uninstalled` event.
   """
   @impl WardrikChannel
-  def uninstall(channel, workspace) do
+  def uninstall(workspace, channel) do
     with {:ok, installation} <- Channel.installation(channel, workspace) do
       credentials = %{
         client_id: channel.options[:client_id],
@@ -193,7 +197,7 @@ defmodule WardrikSlack do
   end
 
   @impl WardrikChannel
-  def deliver(channel, %Outbound{installation: installation} = outbound) do
+  def deliver(%Outbound{installation: installation} = outbound, channel) do
     workspace = %Workspace{channel: channel, installation: installation}
 
     with {:ok, _posted} <- posted(workspace, outbound), do: :ok

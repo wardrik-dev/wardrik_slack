@@ -5,6 +5,11 @@
 - `WardrikSlack.schema/0`: the options it takes beyond `WardrikChannel`'s, checked as the channel
   starts and documented from the schema.
 
+### Breaking
+
+- Implements `WardrikChannel` and `Wardrik.Channel` rc.2's callbacks, each taking what it acts on,
+  then the channel or its options.
+
 ## 0.1.0-rc.1 (2026-10-30)
 
 - A `WardrikChannel` adapter for a Slack app: agents answer mentions in threads, and replies in

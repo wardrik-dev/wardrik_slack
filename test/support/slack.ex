@@ -75,7 +75,7 @@ defmodule WardrikSlack.Test do
       "x-slack-signature" => WardrikSlack.HTTP.signature(secret, at, body)
     }
 
-    WardrikSlack.request(context.options, %{path: path, body: body, headers: headers})
+    WardrikSlack.request(%{path: path, body: body, headers: headers}, context.options)
   end
 
   def event(context, event),

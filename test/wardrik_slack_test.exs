@@ -320,7 +320,8 @@ defmodule WardrikSlackTest do
         text: "Three things happened."
       }
 
-      assert WardrikSlack.notify(context.options, "#news", notice, []) == :ok
+      notification = %Wardrik.Channel.Notification{room: "#news", notice: notice}
+      assert WardrikSlack.notify(notification, context.options) == :ok
 
       assert_receive {:slack, "chat.postMessage",
                       %{"channel" => "#news", "text" => "digest: Three things happened."} =
@@ -346,7 +347,13 @@ defmodule WardrikSlackTest do
         calls: [%{interrupt: interrupt, arguments: %{"text" => "hi"}}]
       }
 
-      assert WardrikSlack.notify(context.options, "#ops", notice, ["@maria"]) == :ok
+      notification = %Wardrik.Channel.Notification{
+        room: "#ops",
+        notice: notice,
+        approvers: ["@maria"]
+      }
+
+      assert WardrikSlack.notify(notification, context.options) == :ok
 
       assert_receive {:slack, "chat.postMessage",
                       %{
