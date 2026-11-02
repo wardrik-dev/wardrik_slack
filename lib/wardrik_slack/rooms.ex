@@ -67,7 +67,7 @@ defmodule WardrikSlack.Rooms do
   def answer(_workspace, _payload), do: :ignored
 
   defp act("agent", agent, workspace, room, by) do
-    case WardrikChannel.Rooms.chose(workspace, room, agent, by) do
+    case WardrikChannel.Rooms.chose(workspace, room: room, agent: agent, by: by) do
       {:ok, binding, offer} -> {:bound, binding, offer}
       {:error, :not_offered} -> {:error, "That agent isn't offered here anymore."}
     end
