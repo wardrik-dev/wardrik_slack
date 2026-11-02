@@ -122,13 +122,13 @@ defmodule WardrikSlack.Waiting do
 
   defp buttons(%{reason: :authorization}, value),
     do: [
-      Blocks.button("Show link", "wardrik_link", value, "primary"),
-      Blocks.button("Deny", "wardrik_deny", value, "danger")
+      Blocks.button("Show link", action_id: "wardrik_link", value: value, style: "primary"),
+      Blocks.button("Deny", action_id: "wardrik_deny", value: value, style: "danger")
     ]
 
   defp buttons(_interrupt, value),
     do: [
-      Blocks.button("Approve", "wardrik_approve", value, "primary"),
-      Blocks.button("Deny", "wardrik_deny", value, "danger")
+      Blocks.button("Approve", action_id: "wardrik_approve", value: value, style: "primary"),
+      Blocks.button("Deny", action_id: "wardrik_deny", value: value, style: "danger")
     ]
 end

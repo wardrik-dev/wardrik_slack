@@ -67,7 +67,7 @@ defmodule WardrikSlack.Rooms do
   def answer(_workspace, _payload), do: :ignored
 
   defp act("agent", agent, workspace, room, by) do
-    case WardrikChannel.Rooms.chose(workspace, room, agent, by) do
+    case WardrikChannel.Rooms.chose(workspace, room: room, agent: agent, by: by) do
       {:ok, binding, offer} -> {:bound, binding, offer}
       {:error, :not_offered} -> {:error, "That agent isn't offered here anymore."}
     end
@@ -124,13 +124,13 @@ defmodule WardrikSlack.Rooms do
 
   def message(:none, %Workspace{channel: channel}, _bot) do
     text = "No agent answers here yet. " <> channel.offering
-    look = Blocks.button("Look again", "wardrik_room_more", "choose")
+    look = Blocks.button("Look again", action_id: "wardrik_room_more", value: "choose")
     %{text: text, blocks: [Blocks.section(text), Blocks.actions("wardrik_room", [look])]}
   end
 
   def message(:stopped, _workspace, _bot) do
     text = "No agent answers here now."
-    choose = Blocks.button("Choose an agent", "wardrik_room_more", "choose")
+    choose = Blocks.button("Choose an agent", action_id: "wardrik_room_more", value: "choose")
     %{text: text, blocks: [Blocks.section(text), Blocks.actions("wardrik_room", [choose])]}
   end
 
@@ -141,10 +141,18 @@ defmodule WardrikSlack.Rooms do
     do: "Mention <@#{bot}>, and it answers in a thread under your message."
 
   defp toggle(:everything),
-    do: Blocks.button("Answer only when mentioned", "wardrik_room_answers", "mentions")
+    do:
+      Blocks.button("Answer only when mentioned",
+        action_id: "wardrik_room_answers",
+        value: "mentions"
+      )
 
   defp toggle(:mentions),
-    do: Blocks.button("Answer every message", "wardrik_room_answers", "everything")
+    do:
+      Blocks.button("Answer every message",
+        action_id: "wardrik_room_answers",
+        value: "everything"
+      )
 
   defp approving(%Workspace{installation: %{approvers: :anyone}}),
     do: "Anyone here may approve a call that needs it."
@@ -169,7 +177,11 @@ defmodule WardrikSlack.Rooms do
           do: "*#{shown(workspace, agent)}*\n#{description}",
           else: "*#{shown(workspace, agent)}*"
 
-      Map.put(Blocks.section(line), :accessory, Blocks.button("Use", "wardrik_room_agent", agent))
+      Map.put(
+        Blocks.section(line),
+        :accessory,
+        Blocks.button("Use", action_id: "wardrik_room_agent", value: agent)
+      )
     end
   end
 

@@ -74,19 +74,30 @@ defmodule WardrikSlack.InstallTest do
        ]
   test "is added and taken out as a channel adapter is", context do
     channel = context.channel
-    {:ok, url} = WardrikSlack.install_url(channel, "globex", return_to: "/settings")
+
+    {:ok, url} =
+      WardrikSlack.install_url(
+        %WardrikChannel.Install{owner: "globex", return_to: "/settings"},
+        channel
+      )
 
     assert {:ok, %Installation{workspace: "T7", name: "Globex"}, "/settings"} =
-             WardrikSlack.installed(channel, "globex", %{"code" => "good", "state" => state(url)})
+             WardrikSlack.installed(
+               %WardrikChannel.Install{
+                 owner: "globex",
+                 query: %{"code" => "good", "state" => state(url)}
+               },
+               channel
+             )
 
-    assert WardrikSlack.uninstall(channel, "T7") == :ok
+    assert WardrikSlack.uninstall("T7", channel) == :ok
 
     assert_received {:slack, "apps.uninstall",
                      %{"client_id" => "1.2", "client_secret" => "c13nt"}}
 
     assert WardrikChannel.Channel.installation(channel, "T7") == :error
 
-    assert WardrikSlack.uninstall(channel, "T7") == :ok
+    assert WardrikSlack.uninstall("T7", channel) == :ok
   end
 
   test "is refused for a channel added with its token alone", context do

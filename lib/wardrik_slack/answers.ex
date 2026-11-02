@@ -2,12 +2,13 @@ defmodule WardrikSlack.Answers do
   @moduledoc """
   Handles presses of the buttons `WardrikSlack.Waiting` posts.
 
-    * Approve and Deny decide the call with `WardrikChannel.decide/4`, with the note typed above
+    * Approve and Deny decide the call with `WardrikChannel.decide/2`, with the note typed above
       them. The buttons are replaced by who decided.
     * Show link replies, to the person who pressed it only, with where to sign in.
   """
 
   alias Wardrik.Error
+  alias WardrikChannel.Answer
   alias WardrikChannel.Member
   alias WardrikChannel.Workspace
   alias WardrikSlack.API
@@ -45,16 +46,22 @@ defmodule WardrikSlack.Answers do
   defp pressed("wardrik_link", workspace, member, button, _note) do
     scope = Workspace.member_scope(workspace, member)
 
-    case Wardrik.Agent.authorization(scope, button["c"], button["i"]) do
+    case Wardrik.Agent.authorization(scope, agent: button["c"], interrupt: button["i"]) do
       {:ok, %Wardrik.Authorization{url: url}} -> {:said, "Sign in at #{url}"}
       {:error, %Error{message: message}} -> {:said, message}
     end
   end
 
   defp pressed(action, workspace, member, button, note) do
-    waiting = %{conversation: button["c"], interrupt: button["i"], asked_by: button["a"]}
+    answer = %Answer{
+      member: member,
+      conversation: button["c"],
+      interrupt: button["i"],
+      asked_by: button["a"],
+      decision: decision(action, note)
+    }
 
-    case WardrikChannel.decide(workspace, member, waiting, decision(action, note)) do
+    case WardrikChannel.decide(workspace, answer) do
       {:ok, _decision} -> {:decided, action, note}
       {:error, message} -> {:said, message}
     end

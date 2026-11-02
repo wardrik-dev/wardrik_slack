@@ -5,6 +5,14 @@
 - `WardrikSlack.schema/0`: the options it takes beyond `WardrikChannel`'s, checked as the channel
   starts and documented from the schema.
 
+### Breaking
+
+- Implements `WardrikChannel` and `Wardrik.Channel` rc.2's callbacks, each taking what it acts on,
+  then the channel or its options.
+- `WardrikSlack.API.post/2` and `read/2` take the method, then `:token`, `:body` or `:params`, and
+  `:req_options` by name. `WardrikSlack.Blocks.button/2` takes the label, then `:action_id`,
+  `:value` and `:style`.
+
 ## 0.1.0-rc.1 (2026-10-30)
 
 - A `WardrikChannel` adapter for a Slack app: agents answer mentions in threads, and replies in

@@ -56,14 +56,25 @@ defmodule WardrikSlack.Test do
     :ok = Server.start(name)
     start_supervised!(WardrikSlack.child_spec(options))
 
-    owner = Wardrik.Scope.new(Server, name, "acme/@maria", roles: [:owner], resources: ["*"])
+    owner =
+      Wardrik.Scope.new(Server,
+        wardrik: name,
+        principal: "acme/@maria",
+        grants: [roles: [:owner], resources: ["*"]]
+      )
+
     channel = WardrikChannel.channel(WardrikSlack, options)
 
     %{wardrik: name, owner: owner, channel: channel, options: options, events: events}
   end
 
   def define(owner, id, fields \\ []),
-    do: Server.add_agent(owner.wardrik, id, fields[:channels] || [], fields[:description])
+    do:
+      Server.add_agent(owner.wardrik,
+        id: id,
+        channels: fields[:channels] || [],
+        description: fields[:description]
+      )
 
   @doc "Sends Slack's signed request to the channel, and returns its answer."
   def deliver(context, path, body, opts \\ []) do
@@ -75,7 +86,7 @@ defmodule WardrikSlack.Test do
       "x-slack-signature" => WardrikSlack.HTTP.signature(secret, at, body)
     }
 
-    WardrikSlack.request(context.options, %{path: path, body: body, headers: headers})
+    WardrikSlack.request(%{path: path, body: body, headers: headers}, context.options)
   end
 
   def event(context, event),

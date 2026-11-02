@@ -63,7 +63,7 @@ defmodule WardrikSlack.MixProject do
       {:nimble_options, "~> 1.1"},
       {:req, "~> 0.7"},
       {:websockex, "~> 0.5.1"},
-      sibling(:wardrik_testing, "~> 0.1.0-rc.1", only: :test),
+      sibling(:wardrik_testing, "~> 0.1.0-rc.2", only: :test),
       {:plug, "~> 1.16", only: :test},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
