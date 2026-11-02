@@ -56,7 +56,13 @@ defmodule WardrikSlack.Test do
     :ok = Server.start(name)
     start_supervised!(WardrikSlack.child_spec(options))
 
-    owner = Wardrik.Scope.new(Server, name, "acme/@maria", roles: [:owner], resources: ["*"])
+    owner =
+      Wardrik.Scope.new(Server,
+        wardrik: name,
+        principal: "acme/@maria",
+        grants: [roles: [:owner], resources: ["*"]]
+      )
+
     channel = WardrikChannel.channel(WardrikSlack, options)
 
     %{wardrik: name, owner: owner, channel: channel, options: options, events: events}
