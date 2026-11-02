@@ -12,19 +12,31 @@ defmodule WardrikSlack.API do
   @api "https://slack.com/api/"
   @retried [retry: :transient, max_retries: 5]
 
-  @doc "Calls `method` with `body` as JSON. Returns Slack's reply, or its `error`."
-  @spec post(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def post(method, token, body, req_options \\ []),
-    do: call(method, [json: body, auth: {:bearer, token}] ++ req_options)
+  @doc """
+  Calls `method` with `:token`, and `:body` as JSON. Returns Slack's reply, or its `error`.
 
-  @doc "Calls `method` with `params` as a form, as Slack's read methods expect. Drops `nil` params."
-  @spec read(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
-  def read(method, token, params, req_options \\ []) do
-    form = for {key, value} <- params, value != nil, do: {key, value}
-    call(method, [form: form, auth: {:bearer, token}] ++ req_options)
+      WardrikSlack.API.post("auth.test", token: token, body: %{})
+
+  `:req_options` are merged into the request. `[]` unless set.
+  """
+  @spec post(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def post(method, args),
+    do: call(method, [json: Keyword.fetch!(args, :body)] ++ sent(args))
+
+  @doc """
+  Calls `method` with `:token`, and `:params` as a form, as Slack's read methods expect. Drops
+  `nil` params. Takes `:req_options` as `post/2` does.
+  """
+  @spec read(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def read(method, args) do
+    form = for {key, value} <- Keyword.fetch!(args, :params), value != nil, do: {key, value}
+    call(method, [form: form] ++ sent(args))
   end
 
-  @doc "Like `post/4`, with the bot token and `:req_options` of `workspace`."
+  defp sent(args),
+    do: [auth: {:bearer, Keyword.fetch!(args, :token)}] ++ Keyword.get(args, :req_options, [])
+
+  @doc "Like `post/2`, with the bot token and `:req_options` of `workspace`."
   @spec post_in(WardrikChannel.Workspace.t(), String.t(), map()) ::
           {:ok, map()} | {:error, term()}
   def post_in(
@@ -32,9 +44,9 @@ defmodule WardrikSlack.API do
         method,
         body
       ),
-      do: post(method, installation.token, body, req_options(channel))
+      do: post(method, token: installation.token, body: body, req_options: req_options(channel))
 
-  @doc "Like `read/4`, with the bot token and `:req_options` of `workspace`."
+  @doc "Like `read/2`, with the bot token and `:req_options` of `workspace`."
   @spec read_in(WardrikChannel.Workspace.t(), String.t(), map()) ::
           {:ok, map()} | {:error, term()}
   def read_in(
@@ -42,7 +54,8 @@ defmodule WardrikSlack.API do
         method,
         params
       ),
-      do: read(method, installation.token, params, req_options(channel))
+      do:
+        read(method, token: installation.token, params: params, req_options: req_options(channel))
 
   @doc "Returns the channel's `:req_options`. `[]` unless set."
   @spec req_options(WardrikChannel.Channel.t()) :: keyword()

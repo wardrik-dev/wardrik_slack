@@ -129,7 +129,7 @@ defmodule WardrikSlack do
   defp bot(nil, _req_options), do: {:ok, "keeps a token for each workspace it's added to"}
 
   defp bot(token, req_options) do
-    case API.post("auth.test", token, %{}, req_options) do
+    case API.post("auth.test", token: token, body: %{}, req_options: req_options) do
       {:ok, %{"user" => user, "team" => team}} -> {:ok, "posts as @#{user} in #{team}"}
       {:error, why} -> {:error, "Slack refused its token: #{inspect(why)}"}
     end
@@ -138,7 +138,7 @@ defmodule WardrikSlack do
   defp app(nil, _req_options), do: :ok
 
   defp app(token, req_options) do
-    case API.post("apps.connections.open", token, %{}, req_options) do
+    case API.post("apps.connections.open", token: token, body: %{}, req_options: req_options) do
       {:ok, _url} -> :ok
       {:error, why} -> {:error, "Slack refused its app_token: #{inspect(why)}"}
     end
@@ -183,7 +183,11 @@ defmodule WardrikSlack do
       }
 
       _asked =
-        API.read("apps.uninstall", installation.token, credentials, API.req_options(channel))
+        API.read("apps.uninstall",
+          token: installation.token,
+          params: credentials,
+          req_options: API.req_options(channel)
+        )
     end
 
     Channel.uninstall(channel, workspace)

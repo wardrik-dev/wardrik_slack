@@ -18,10 +18,22 @@ defmodule WardrikSlack.Install do
   Reach these through `Wardrik.Channels`:
 
       # 1. Send someone acting for the org to Slack
-      {:ok, url} = Wardrik.Channels.install_url(MyApp.AgentRuntime, "slack", "acme", return_to: "/settings")
+      {:ok, url} =
+        Wardrik.Channels.install_url(MyApp.AgentRuntime,
+          channel: "slack",
+          owner: "acme",
+          return_to: "/settings"
+        )
 
       # 2. In the route Slack sends them back to
-      case Wardrik.Channels.installed(MyApp.AgentRuntime, "slack", "acme", conn.query_params) do
+      installed =
+        Wardrik.Channels.installed(MyApp.AgentRuntime,
+          channel: "slack",
+          owner: "acme",
+          query: conn.query_params
+        )
+
+      case installed do
         {:ok, _installation, return_to} -> redirect(conn, external: return_to || "/")
         {:error, message} -> send_resp(conn, 400, message)
       end

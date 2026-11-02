@@ -69,7 +69,12 @@ defmodule WardrikSlack.Test do
   end
 
   def define(owner, id, fields \\ []),
-    do: Server.add_agent(owner.wardrik, id, fields[:channels] || [], fields[:description])
+    do:
+      Server.add_agent(owner.wardrik,
+        id: id,
+        channels: fields[:channels] || [],
+        description: fields[:description]
+      )
 
   @doc "Sends Slack's signed request to the channel, and returns its answer."
   def deliver(context, path, body, opts \\ []) do

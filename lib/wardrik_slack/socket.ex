@@ -102,7 +102,11 @@ defmodule WardrikSlack.Socket do
     token = Keyword.fetch!(channel.options, :app_token)
 
     with {:ok, %{"url" => url}} <-
-           API.post("apps.connections.open", token, %{}, API.req_options(channel)),
+           API.post("apps.connections.open",
+             token: token,
+             body: %{},
+             req_options: API.req_options(channel)
+           ),
          {:ok, connection} <- Connection.start_link(url, self()) do
       {:noreply, %{state | connection: connection}}
     else

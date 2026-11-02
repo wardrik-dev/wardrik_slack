@@ -46,7 +46,7 @@ defmodule WardrikSlack.Answers do
   defp pressed("wardrik_link", workspace, member, button, _note) do
     scope = Workspace.member_scope(workspace, member)
 
-    case Wardrik.Agent.authorization(scope, button["c"], button["i"]) do
+    case Wardrik.Agent.authorization(scope, agent: button["c"], interrupt: button["i"]) do
       {:ok, %Wardrik.Authorization{url: url}} -> {:said, "Sign in at #{url}"}
       {:error, %Error{message: message}} -> {:said, message}
     end
